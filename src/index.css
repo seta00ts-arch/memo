@@ -758,12 +758,17 @@ select {
 
 /* --- モバイル: 一覧と本文を切り替える --- */
 @media (max-width: 860px) {
+  /* グリッドのまま複数の可視要素（トップバー+コンテンツ）を並べると、
+     行の高さが指定されていないため余白が意図せず引き伸ばされる。
+     モバイルは縦積みのFlexboxに切り替え、トップバーだけ高さを内容に合わせる。 */
   .app-shell {
-    grid-template-columns: 1fr;
+    display: flex;
+    flex-direction: column;
   }
 
   .mobile-topbar {
     display: flex;
+    flex: 0 0 auto;
     align-items: center;
     gap: 10px;
     padding: 10px 12px;
@@ -791,19 +796,24 @@ select {
 
   .app-shell.mobile-sidebar .sidebar {
     display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .app-shell.mobile-list .note-list,
   .app-shell.mobile-list .main-panel--full {
     display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .app-shell.mobile-editor .note-editor {
     display: flex;
+    flex: 1 1 auto;
+    min-height: 0;
   }
 
   .main-panel--full {
-    grid-column: 1;
     flex-direction: column;
   }
 
