@@ -817,3 +817,115 @@ select {
     display: inline-flex;
   }
 }
+
+/* --- PC版: サイバーパンク2077風配色（ダーク基調 + ネオンイエロー/マゼンタ） ---
+   モバイルは可読性・情報密度を優先し、通常のライト/ダーク配色のまま変更しない。 */
+@media (min-width: 861px) {
+  :root {
+    --bg: #0b0a12;
+    --bg-alt: #15121f;
+    --border: #322c4a;
+    --text: #eef0ff;
+    --text-muted: #9691b8;
+    --accent: #fcee0a;
+    --accent-soft: rgba(252, 238, 10, 0.14);
+    --accent-2: #00e5ff;
+    --danger: #ff2a6d;
+  }
+
+  body {
+    background:
+      radial-gradient(1200px 700px at 10% -10%, rgba(255, 42, 109, 0.16), transparent 60%),
+      radial-gradient(1000px 800px at 110% 10%, rgba(0, 229, 255, 0.12), transparent 55%),
+      linear-gradient(180deg, #0b0a12, #100e1a 60%, #0b0a12);
+  }
+
+  .sidebar,
+  .note-list,
+  .note-editor,
+  .main-panel--full,
+  .modal {
+    background: rgba(21, 18, 31, 0.72);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+  }
+
+  .sidebar {
+    border-right-color: var(--border);
+  }
+
+  .note-list {
+    border-right-color: var(--border);
+  }
+
+  .sidebar-header .app-title {
+    text-shadow: 0 0 12px rgba(252, 238, 10, 0.55);
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: #0b0a12;
+    font-weight: 700;
+    box-shadow: 0 0 16px rgba(252, 238, 10, 0.35);
+  }
+
+  .btn-primary:hover {
+    box-shadow: 0 0 22px rgba(252, 238, 10, 0.55);
+  }
+
+  .btn:hover {
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.35);
+  }
+
+  .sidebar-list button.active {
+    background: var(--accent-soft);
+    color: var(--accent);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  .note-item:hover,
+  .note-list-items li.selected .note-item {
+    background: rgba(0, 229, 255, 0.08);
+  }
+
+  .badge {
+    background: transparent;
+    border: 1px solid var(--accent-2);
+    color: var(--accent-2);
+  }
+
+  .star,
+  .icon-btn.favorite-on {
+    color: var(--accent);
+    text-shadow: 0 0 8px rgba(252, 238, 10, 0.6);
+  }
+
+  .tags-grid-item {
+    background: rgba(0, 229, 255, 0.06);
+    border-color: var(--accent-2);
+  }
+
+  .tags-grid-item .count {
+    background: rgba(252, 238, 10, 0.16);
+    color: var(--accent);
+  }
+
+  .link-btn {
+    color: var(--accent-2);
+  }
+
+  .link-btn.danger {
+    color: var(--danger);
+  }
+
+  .modal {
+    box-shadow: 0 0 40px rgba(255, 42, 109, 0.2);
+  }
+
+  .redirect-uri {
+    background: rgba(0, 229, 255, 0.08);
+    border: 1px solid var(--accent-2);
+    color: var(--accent-2);
+  }
+}
