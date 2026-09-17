@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store/useStore";
 import type { Note } from "../types";
 import { renderMarkdown, TOOLBAR_ACTIONS } from "../lib/markdown";
@@ -18,6 +18,12 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
   const trashNote = useStore((s) => s.trashNote);
   const toggleFavorite = useStore((s) => s.toggleFavorite);
   const notebooks = useStore((s) => s.notebooks);
+  const allNotes = useStore((s) => s.notes);
+  const allTags = useMemo(() => {
+    const set = new Set<string>();
+    for (const n of allNotes) for (const t of n.tags) set.add(t);
+    return Array.from(set).sort();
+  }, [allNotes]);
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
@@ -44,7 +50,7 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
     return Array.from(
       new Set(
         input
-          .split(",")
+          .split(/[,、]/)
           .map((t) => t.trim())
           .filter(Boolean)
       )
@@ -67,6 +73,17 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
       </section>
     );
   }
+
+  function addExistingTag(tag: string) {
+    const current = parseTags(tagsInput);
+    if (current.includes(tag)) return;
+    const next = [...current, tag].join(", ");
+    setTagsInput(next);
+    debouncedSave();
+  }
+
+  const currentTags = parseTags(tagsInput);
+  const pickableTags = allTags.filter((t) => !currentTags.includes(t));
 
   function applyToolbarAction(actionIndex: number) {
     const ta = textareaRef.current;
@@ -145,7 +162,7 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
                 debouncedSave();
               }}
             >
-              <option value="">受信箱</option>
+              <option value="">未整理</option>
               {notebooks.map((nb) => (
                 <option key={nb.id} value={nb.id}>
                   {nb.name}
@@ -154,7 +171,7 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
             </select>
           </label>
           <label className="field field-grow">
-            <span>タグ（カンマ区切り）</span>
+            <span>タグ（,または、で区切る）</span>
             <input
               value={tagsInput}
               onChange={(e) => {
@@ -164,6 +181,15 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
             />
           </label>
         </div>
+        {pickableTags.length > 0 && (
+          <div className="tag-picker">
+            {pickableTags.map((t) => (
+              <button key={t} className="badge badge-tag tag-picker-item" onClick={() => addExistingTag(t)}>
+                + #{t}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="editor-toolbar">
@@ -209,6 +235,14 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
         >
           {copied ? "コピーしました" : "コピー（Claude等に貼り付け用）"}
         </button>
+        {typeof navigator.share === "function" && (
+          <button
+            className="link-btn"
+            onClick={() => navigator.share({ title: note.title, text: noteToMarkdown(note) }).catch(() => {})}
+          >
+            共有
+          </button>
+        )}
         <button
           className="link-btn"
           onClick={() => downloadBlob(new Blob([noteToMarkdown(note)], { type: "text/markdown" }), `${note.title || "note"}.md`)}
