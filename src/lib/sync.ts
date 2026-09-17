@@ -4,7 +4,7 @@
 
 import { getDB } from "../db";
 import { useStore } from "../store/useStore";
-import type { Note, HistoryEntry, Notebook } from "../types";
+import type { Note, HistoryEntry, Notebook, Tombstone } from "../types";
 import {
   getStoredAuth,
   ensureAppFolder,
@@ -21,8 +21,10 @@ export interface SyncResult {
   uploadedNotes: number;
   uploadedHistory: number;
   uploadedAttachments: number;
+  uploadedDeletions: number;
   downloadedNotes: number;
   downloadedAttachments: number;
+  downloadedDeletions: number;
   conflicts: number;
 }
 
@@ -41,14 +43,17 @@ export async function syncAll(): Promise<SyncResult> {
     uploadedNotes: 0,
     uploadedHistory: 0,
     uploadedAttachments: 0,
+    uploadedDeletions: 0,
     downloadedNotes: 0,
     downloadedAttachments: 0,
+    downloadedDeletions: 0,
     conflicts: 0,
   };
 
   const store = useStore.getState();
   const localNotes = await db.getAll("notes");
   const localNotebooks = await db.getAll("notebooks");
+  const localTombstoneIds = await store.getTombstoneIds();
 
   // ---- アップロード ----
   const remoteNoteNames = new Set((await listFolder(auth, `${folder}/notes`)).map((e) => e.name));
@@ -82,6 +87,32 @@ export async function syncAll(): Promise<SyncResult> {
   void remoteNoteNames; // 将来的な差分検出用に取得のみ行っている
 
   await uploadJson(auth, `${folder}/notebooks`, "notebooks.json", localNotebooks);
+
+  // 完全削除の伝播: ローカルの削除マーカーをアップロードする。他端末が同じノートを
+  // ダウンロードで復活させないよう、ノートのダウンロードより前に処理する。
+  const deletedFolderPath = `${folder}/deleted`;
+  if (localTombstoneIds.size) {
+    const remoteTombstoneNames = new Set((await listFolder(auth, deletedFolderPath)).map((e) => e.name));
+    for (const id of localTombstoneIds) {
+      const filename = `${id}.json`;
+      if (remoteTombstoneNames.has(filename)) continue;
+      const tombstone = await db.get("tombstones", id);
+      if (!tombstone) continue;
+      await uploadJson(auth, deletedFolderPath, filename, tombstone);
+      result.uploadedDeletions++;
+    }
+  }
+
+  // 完全削除の伝播: 他端末発の削除マーカーを取り込む（まだローカルに残っているノートは削除する）
+  const remoteTombstoneEntries = await listFolder(auth, deletedFolderPath);
+  for (const entry of remoteTombstoneEntries) {
+    if (entry.isfolder || !entry.name.endsWith(".json")) continue;
+    const id = entry.name.replace(/\.json$/, "");
+    if (localTombstoneIds.has(id)) continue;
+    const tombstone = await downloadJson<Tombstone>(auth, `${deletedFolderPath}/${entry.name}`);
+    await store.importTombstone(tombstone);
+    result.downloadedDeletions++;
+  }
 
   // ---- ダウンロード ----
   const remoteNoteEntries = await listFolder(auth, `${folder}/notes`);

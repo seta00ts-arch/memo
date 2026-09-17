@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useStore } from "../store/useStore";
+import type { Note } from "../types";
 
 function useNotebookName(id: string | null): string | null {
   const notebooks = useStore((s) => s.notebooks);
@@ -9,11 +10,18 @@ function useNotebookName(id: string | null): string | null {
 
 interface Props {
   defaultNotebookId: string | null;
+  /** iOSショートカット等からの共有URL引き継ぎ用。指定時は開いた瞬間に取得を試みる */
+  initialUrl?: string;
+  initialTitle?: string;
   onClose: () => void;
   onSaved: (noteId: string, notebookId: string | null) => void;
 }
 
-type Step = "url" | "confirm";
+type Step = "url" | "duplicate" | "confirm";
+
+function normalizeUrl(url: string): string {
+  return url.trim().replace(/\/+$/, "").toLowerCase();
+}
 
 async function tryFetchArticle(url: string): Promise<{ title: string; body: string } | null> {
   try {
@@ -31,18 +39,51 @@ async function tryFetchArticle(url: string): Promise<{ title: string; body: stri
   }
 }
 
-export default function SaveArticleDialog({ defaultNotebookId, onClose, onSaved }: Props) {
+export default function SaveArticleDialog({
+  defaultNotebookId,
+  initialUrl,
+  initialTitle,
+  onClose,
+  onSaved,
+}: Props) {
+  const notes = useStore((s) => s.notes);
   const createNote = useStore((s) => s.createNote);
   const notebookName = useNotebookName(defaultNotebookId);
   const [step, setStep] = useState<Step>("url");
-  const [url, setUrl] = useState("");
-  const [title, setTitle] = useState("");
+  const [url, setUrl] = useState(initialUrl ?? "");
+  const [title, setTitle] = useState(initialTitle ?? "");
   const [body, setBody] = useState("");
   const [fetching, setFetching] = useState(false);
   const [fetchFailed, setFetchFailed] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [duplicateNote, setDuplicateNote] = useState<Note | null>(null);
 
-  async function handleTryFetch() {
+  useEffect(() => {
+    if (initialUrl) {
+      proceedAfterUrl();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function findDuplicate(): Note | null {
+    if (!url.trim()) return null;
+    const target = normalizeUrl(url);
+    return (
+      notes.find((n) => !n.trashed && n.sourceUrl && normalizeUrl(n.sourceUrl) === target) ?? null
+    );
+  }
+
+  async function proceedAfterUrl() {
+    const dup = findDuplicate();
+    if (dup) {
+      setDuplicateNote(dup);
+      setStep("duplicate");
+      return;
+    }
+    await fetchAndGoToConfirm();
+  }
+
+  async function fetchAndGoToConfirm() {
     setFetching(true);
     setFetchFailed(false);
     const result = await tryFetchArticle(url);
@@ -57,6 +98,12 @@ export default function SaveArticleDialog({ defaultNotebookId, onClose, onSaved 
   }
 
   function handleSkipToPaste() {
+    const dup = findDuplicate();
+    if (dup) {
+      setDuplicateNote(dup);
+      setStep("duplicate");
+      return;
+    }
     setFetchFailed(false);
     setStep("confirm");
   }
@@ -112,8 +159,29 @@ export default function SaveArticleDialog({ defaultNotebookId, onClose, onSaved 
               <button className="btn" onClick={handleSkipToPaste}>
                 貼り付けで入力する
               </button>
-              <button className="btn btn-primary" disabled={!url || fetching} onClick={handleTryFetch}>
+              <button className="btn btn-primary" disabled={!url || fetching} onClick={proceedAfterUrl}>
                 {fetching ? "取得中…" : "本文の取得を試す"}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {step === "duplicate" && duplicateNote && (
+          <div className="modal-body">
+            <p>
+              同じURLのノートが既にあります：<br />
+              <strong>{duplicateNote.title || "無題"}</strong>
+            </p>
+            <p className="muted small">開いて確認するか、別の版として新しく保存できます。</p>
+            <div className="modal-actions">
+              <button className="btn" onClick={fetchAndGoToConfirm}>
+                別の版として保存する
+              </button>
+              <button
+                className="btn btn-primary"
+                onClick={() => onSaved(duplicateNote.id, duplicateNote.notebookId ?? null)}
+              >
+                既存のノートを開く
               </button>
             </div>
           </div>
@@ -144,7 +212,7 @@ export default function SaveArticleDialog({ defaultNotebookId, onClose, onSaved 
                 戻る
               </button>
               <button className="btn btn-primary" disabled={saving} onClick={handleSave}>
-                {saving ? "保存中…" : "未整理へ保存"}
+                {saving ? "保存中…" : `${notebookName ?? "未整理"}へ保存`}
               </button>
             </div>
           </div>

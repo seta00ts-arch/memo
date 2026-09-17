@@ -96,6 +96,7 @@ export async function ensureAppFolder(auth: PCloudAuth): Promise<string> {
   await createFolderIfNotExists(auth, `/${APP_FOLDER_NAME}/history`);
   await createFolderIfNotExists(auth, `/${APP_FOLDER_NAME}/attachments`);
   await createFolderIfNotExists(auth, `/${APP_FOLDER_NAME}/notebooks`);
+  await createFolderIfNotExists(auth, `/${APP_FOLDER_NAME}/deleted`);
   return `/${APP_FOLDER_NAME}`;
 }
 

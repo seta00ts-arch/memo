@@ -54,6 +54,17 @@ export interface Notebook {
   createdAt: string;
 }
 
+/**
+ * 完全削除の同期伝播用マーカー。permanentlyDeleteNote時にローカルへ記録し、
+ * 同期時にpCloud側にもアップロードすることで、他端末が同じノートを
+ * ダウンロードで復活させてしまわないようにする。
+ */
+export interface Tombstone {
+  id: string; // 削除されたノートのID
+  deletedAt: string;
+  deviceId: string;
+}
+
 export type SyncStatus = "unconnected" | "syncing" | "done" | "failed";
 
 export interface AppSettings {

@@ -20,10 +20,23 @@ function App() {
   const [selectedNoteId, setSelectedNoteId] = useState<string | null>(null);
   const [mobileScreen, setMobileScreen] = useState<MobileScreen>("list");
   const [saveArticleOpen, setSaveArticleOpen] = useState(false);
+  const [sharedUrl, setSharedUrl] = useState<{ url: string; title: string } | null>(null);
 
   useEffect(() => {
     init();
   }, [init]);
+
+  useEffect(() => {
+    // iOSショートカット等から ?share_url=...&share_title=... で開かれた場合、
+    // 記事保存ダイアログを自動的に開き、URLを引き継ぐ（共有メニューからの取り込みの代替）
+    const params = new URLSearchParams(window.location.search);
+    const shareUrl = params.get("share_url");
+    if (shareUrl) {
+      setSharedUrl({ url: shareUrl, title: params.get("share_title") ?? "" });
+      setSaveArticleOpen(true);
+      window.history.replaceState(null, "", window.location.pathname);
+    }
+  }, []);
 
   if (!loaded) {
     return (
@@ -124,9 +137,15 @@ function App() {
       {saveArticleOpen && (
         <SaveArticleDialog
           defaultNotebookId={view.kind === "notebook" ? view.id : null}
-          onClose={() => setSaveArticleOpen(false)}
+          initialUrl={sharedUrl?.url}
+          initialTitle={sharedUrl?.title}
+          onClose={() => {
+            setSaveArticleOpen(false);
+            setSharedUrl(null);
+          }}
           onSaved={(id, notebookId) => {
             setSaveArticleOpen(false);
+            setSharedUrl(null);
             revealNoteInList(notebookId);
             openNote(id);
           }}
