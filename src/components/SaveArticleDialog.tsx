@@ -1,9 +1,16 @@
 import { useState } from "react";
 import { useStore } from "../store/useStore";
 
+function useNotebookName(id: string | null): string | null {
+  const notebooks = useStore((s) => s.notebooks);
+  if (!id) return null;
+  return notebooks.find((n) => n.id === id)?.name ?? null;
+}
+
 interface Props {
+  defaultNotebookId: string | null;
   onClose: () => void;
-  onSaved: (noteId: string) => void;
+  onSaved: (noteId: string, notebookId: string | null) => void;
 }
 
 type Step = "url" | "confirm";
@@ -24,8 +31,9 @@ async function tryFetchArticle(url: string): Promise<{ title: string; body: stri
   }
 }
 
-export default function SaveArticleDialog({ onClose, onSaved }: Props) {
+export default function SaveArticleDialog({ defaultNotebookId, onClose, onSaved }: Props) {
   const createNote = useStore((s) => s.createNote);
+  const notebookName = useNotebookName(defaultNotebookId);
   const [step, setStep] = useState<Step>("url");
   const [url, setUrl] = useState("");
   const [title, setTitle] = useState("");
@@ -61,8 +69,9 @@ export default function SaveArticleDialog({ onClose, onSaved }: Props) {
         title: title.trim() || url || "無題の記事",
         body,
         sourceUrl: url || undefined,
+        notebookId: defaultNotebookId,
       });
-      onSaved(note.id);
+      onSaved(note.id, defaultNotebookId);
     } finally {
       setSaving(false);
     }
@@ -77,6 +86,11 @@ export default function SaveArticleDialog({ onClose, onSaved }: Props) {
             ✕
           </button>
         </div>
+        {notebookName ? (
+          <p className="muted small">保存先: {notebookName}</p>
+        ) : (
+          <p className="muted small">保存先: 受信箱</p>
+        )}
 
         {step === "url" && (
           <div className="modal-body">

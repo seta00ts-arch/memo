@@ -43,6 +43,14 @@ function App() {
     setMobileScreen("list");
   }
 
+  // 新規ノートが現在のビューの一覧に表示されない場合（例: タグ・お気に入り絞り込み中）は、
+  // 受信箱に切り替えて見えるようにする。ノートブック内で作成した場合はそのビューのまま。
+  function revealNoteInList(notebookId: string | null) {
+    if (notebookId) return;
+    if (view.kind === "inbox" || view.kind === "all") return;
+    setView({ kind: "inbox" });
+  }
+
   const isSpecialView = view.kind === "settings" || view.kind === "trash";
 
   return (
@@ -64,8 +72,21 @@ function App() {
         onClose={() => setMobileScreen("list")}
         onSaveArticle={() => setSaveArticleOpen(true)}
         onNewMemo={async () => {
-          const note = await useStore.getState().createNote({ type: "memo", title: "無題のメモ", body: "" });
-          setView({ kind: "inbox" });
+          const notebookId = view.kind === "notebook" ? view.id : null;
+          const note = await useStore.getState().createNote({ type: "memo", title: "無題のメモ", body: "", notebookId });
+          revealNoteInList(notebookId);
+          openNote(note.id);
+        }}
+        onImportFile={async (file) => {
+          const notebookId = view.kind === "notebook" ? view.id : null;
+          const title = file.name.replace(/\.[^/.]+$/, "");
+          const note = await useStore.getState().createNote({ type: "memo", title, body: "", notebookId });
+          try {
+            await useStore.getState().addAttachment(note.id, file);
+          } catch (e) {
+            window.alert(e instanceof Error ? e.message : "添付に失敗しました");
+          }
+          revealNoteInList(notebookId);
           openNote(note.id);
         }}
       />
@@ -88,10 +109,11 @@ function App() {
 
       {saveArticleOpen && (
         <SaveArticleDialog
+          defaultNotebookId={view.kind === "notebook" ? view.id : null}
           onClose={() => setSaveArticleOpen(false)}
-          onSaved={(id) => {
+          onSaved={(id, notebookId) => {
             setSaveArticleOpen(false);
-            setView({ kind: "inbox" });
+            revealNoteInList(notebookId);
             openNote(id);
           }}
         />

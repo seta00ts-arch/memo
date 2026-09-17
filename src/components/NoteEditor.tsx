@@ -26,6 +26,7 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
   const [notebookId, setNotebookId] = useState<string | null>(null);
   const [showPreview, setShowPreview] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [copied, setCopied] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   useEffect(() => {
@@ -112,15 +113,26 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
       <div className="note-editor-fields">
         <label className="field">
           <span>出典URL</span>
-          <input
-            type="url"
-            value={sourceUrl}
-            placeholder="https://…"
-            onChange={(e) => {
-              setSourceUrl(e.target.value);
-              debouncedSave();
-            }}
-          />
+          <div className="field-with-button">
+            <input
+              type="url"
+              value={sourceUrl}
+              placeholder="https://…"
+              onChange={(e) => {
+                setSourceUrl(e.target.value);
+                debouncedSave();
+              }}
+            />
+            <button
+              type="button"
+              className="icon-btn"
+              title="サイトを開く"
+              disabled={!sourceUrl}
+              onClick={() => window.open(sourceUrl, "_blank", "noopener,noreferrer")}
+            >
+              ↗
+            </button>
+          </div>
         </label>
         <div className="field-row">
           <label className="field">
@@ -187,6 +199,16 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
       <AttachmentList noteId={note.id} />
 
       <div className="note-editor-footer">
+        <button
+          className="link-btn"
+          onClick={async () => {
+            await navigator.clipboard.writeText(noteToMarkdown(note));
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1500);
+          }}
+        >
+          {copied ? "コピーしました" : "コピー（Claude等に貼り付け用）"}
+        </button>
         <button
           className="link-btn"
           onClick={() => downloadBlob(new Blob([noteToMarkdown(note)], { type: "text/markdown" }), `${note.title || "note"}.md`)}
