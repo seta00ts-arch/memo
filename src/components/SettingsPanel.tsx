@@ -49,8 +49,8 @@ export default function SettingsPanel() {
       const result: SyncResult = await syncAll();
       setSyncStatus("done");
       setSyncMessage(
-        `アップロード ノート${result.uploadedNotes}件/履歴${result.uploadedHistory}件/添付${result.uploadedAttachments}件/削除${result.uploadedDeletions}件、` +
-          `ダウンロード ノート${result.downloadedNotes}件/添付${result.downloadedAttachments}件/削除${result.downloadedDeletions}件` +
+        `アップロード ノート${result.uploadedNotes}件/履歴${result.uploadedHistory}件/添付${result.uploadedAttachments}件/ノートブック${result.uploadedNotebooks}件/削除${result.uploadedDeletions}件、` +
+          `ダウンロード ノート${result.downloadedNotes}件/添付${result.downloadedAttachments}件/ノートブック${result.downloadedNotebooks}件/削除${result.downloadedDeletions}件` +
           (result.conflicts > 0 ? `（うち競合${result.conflicts}件は両方の版を保持しました）` : "")
       );
     } catch (e) {

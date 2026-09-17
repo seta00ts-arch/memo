@@ -45,6 +45,9 @@ export interface HistoryEntry {
     sourceUrl?: string;
     tags: string[];
     notebookId?: string | null;
+    /** その時点でノートに付いていた添付ID。添付の実体は別途attachmentsストアに
+     *  保存され続けるため、添付を外した後でもこの版からは復元できる。 */
+    attachmentIds: string[];
   };
 }
 
@@ -52,15 +55,17 @@ export interface Notebook {
   id: string;
   name: string;
   createdAt: string;
+  updatedAt: string;
 }
 
 /**
- * 完全削除の同期伝播用マーカー。permanentlyDeleteNote時にローカルへ記録し、
- * 同期時にpCloud側にもアップロードすることで、他端末が同じノートを
- * ダウンロードで復活させてしまわないようにする。
+ * 完全削除の同期伝播用マーカー。permanentlyDeleteNote/removeNotebook時にローカルへ
+ * 記録し、同期時にpCloud側にもアップロードすることで、他端末が同じノート・
+ * ノートブックをダウンロードで復活させてしまわないようにする。
  */
 export interface Tombstone {
-  id: string; // 削除されたノートのID
+  id: string; // 削除されたノート・ノートブックのID
+  kind: "note" | "notebook";
   deletedAt: string;
   deviceId: string;
 }

@@ -21,9 +21,11 @@ export interface SyncResult {
   uploadedNotes: number;
   uploadedHistory: number;
   uploadedAttachments: number;
+  uploadedNotebooks: number;
   uploadedDeletions: number;
   downloadedNotes: number;
   downloadedAttachments: number;
+  downloadedNotebooks: number;
   downloadedDeletions: number;
   conflicts: number;
 }
@@ -43,9 +45,11 @@ export async function syncAll(): Promise<SyncResult> {
     uploadedNotes: 0,
     uploadedHistory: 0,
     uploadedAttachments: 0,
+    uploadedNotebooks: 0,
     uploadedDeletions: 0,
     downloadedNotes: 0,
     downloadedAttachments: 0,
+    downloadedNotebooks: 0,
     downloadedDeletions: 0,
     conflicts: 0,
   };
@@ -86,7 +90,12 @@ export async function syncAll(): Promise<SyncResult> {
   }
   void remoteNoteNames; // 将来的な差分検出用に取得のみ行っている
 
-  await uploadJson(auth, `${folder}/notebooks`, "notebooks.json", localNotebooks);
+  // ノートブックはノートと同様にID単位のファイルとして同期する（単一blobだと
+  // 他端末のリネーム・削除が正しく伝わらないため）。
+  for (const nb of localNotebooks) {
+    await uploadJson(auth, `${folder}/notebooks`, `${nb.id}.json`, nb);
+    result.uploadedNotebooks++;
+  }
 
   // 完全削除の伝播: ローカルの削除マーカーをアップロードする。他端末が同じノートを
   // ダウンロードで復活させないよう、ノートのダウンロードより前に処理する。
@@ -162,11 +171,13 @@ export async function syncAll(): Promise<SyncResult> {
     }
   }
 
-  try {
-    const remoteNotebooks = await downloadJson<Notebook[]>(auth, `${folder}/notebooks/notebooks.json`);
-    await store.importNotebooks(remoteNotebooks);
-  } catch {
-    // ノートブック一覧が無い、または未取得でも致命的ではない
+  const remoteNotebookEntries = await listFolder(auth, `${folder}/notebooks`);
+  for (const entry of remoteNotebookEntries) {
+    if (entry.isfolder || !entry.name.endsWith(".json")) continue;
+    const remoteNotebook = await downloadJson<Notebook>(auth, `${folder}/notebooks/${entry.name}`);
+    const before = useStore.getState().notebooks.find((n) => n.id === remoteNotebook.id);
+    await store.importNotebook(remoteNotebook);
+    if (!before || before.updatedAt < remoteNotebook.updatedAt) result.downloadedNotebooks++;
   }
 
   await store.updateSettings({ lastSyncAt: new Date().toISOString() });
