@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useStore } from "../store/useStore";
 import type { ViewFilter } from "../viewTypes";
 import { ALLOWED_ATTACHMENT_TYPES } from "../types";
@@ -30,12 +30,6 @@ export default function Sidebar({ view, onChangeView, onSaveArticle, onNewMemo, 
   const inboxCount = activeNotes.filter((n) => !n.notebookId).length;
   const favoriteCount = activeNotes.filter((n) => n.favorite).length;
   const trashCount = notes.filter((n) => n.trashed).length;
-
-  const tags = useMemo(() => {
-    const set = new Set<string>();
-    for (const n of activeNotes) for (const t of n.tags) set.add(t);
-    return Array.from(set).sort();
-  }, [activeNotes]);
 
   async function handleAddNotebook() {
     const name = newNotebookName.trim();
@@ -105,6 +99,14 @@ export default function Sidebar({ view, onChangeView, onSaveArticle, onNewMemo, 
             お気に入り <span className="count">{favoriteCount}</span>
           </button>
         </li>
+        <li>
+          <button
+            className={isSameView(view, { kind: "tags" }) ? "active" : ""}
+            onClick={() => onChangeView({ kind: "tags" })}
+          >
+            タグ一覧
+          </button>
+        </li>
       </ul>
 
       <div className="sidebar-section">
@@ -145,31 +147,6 @@ export default function Sidebar({ view, onChangeView, onSaveArticle, onNewMemo, 
             </li>
           )}
         </ul>
-      </div>
-
-      <div className="sidebar-section">
-        <div className="sidebar-section-header">
-          <button
-            className={`sidebar-section-link ${isSameView(view, { kind: "tags" }) ? "active" : ""}`}
-            onClick={() => onChangeView({ kind: "tags" })}
-          >
-            タグ一覧
-          </button>
-        </div>
-        {tags.length > 0 && (
-          <ul className="sidebar-list">
-            {tags.map((t) => (
-              <li key={t}>
-                <button
-                  className={isSameView(view, { kind: "tag", tag: t }) ? "active" : ""}
-                  onClick={() => onChangeView({ kind: "tag", tag: t })}
-                >
-                  #{t}
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
       </div>
 
       <div className="sidebar-footer">
