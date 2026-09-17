@@ -80,7 +80,7 @@ export default function AttachmentList({ noteId }: Props) {
                   className="icon-btn"
                   title="削除"
                   onClick={async () => {
-                    await removeAttachment(a.id);
+                    await removeAttachment(noteId, a.id);
                     await refresh();
                   }}
                 >
