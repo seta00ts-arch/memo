@@ -141,20 +141,6 @@ select {
   padding: 4px 10px;
 }
 
-.sidebar-section-link {
-  background: none;
-  border: none;
-  color: inherit;
-  font-size: inherit;
-  padding: 0;
-  cursor: pointer;
-}
-
-.sidebar-section-link:hover,
-.sidebar-section-link.active {
-  color: var(--accent);
-}
-
 .sidebar-footer {
   margin-top: auto;
 }
