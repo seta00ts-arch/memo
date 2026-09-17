@@ -7,6 +7,7 @@ import SaveArticleDialog from "./components/SaveArticleDialog";
 import SettingsPanel from "./components/SettingsPanel";
 import TrashPanel from "./components/TrashPanel";
 import TagsPanel from "./components/TagsPanel";
+import NotebooksPanel from "./components/NotebooksPanel";
 import type { ViewFilter } from "./viewTypes";
 
 export type MobileScreen = "sidebar" | "list" | "editor";
@@ -72,7 +73,8 @@ function App() {
     openNote(note.id);
   }
 
-  const isSpecialView = view.kind === "settings" || view.kind === "trash" || view.kind === "tags";
+  const isSpecialView =
+    view.kind === "settings" || view.kind === "trash" || view.kind === "tags" || view.kind === "notebooks";
 
   return (
     <div className={`app-shell mobile-${mobileScreen}`}>
@@ -115,6 +117,15 @@ function App() {
             <TagsPanel
               onSelectTag={(tag) => {
                 setView({ kind: "tag", tag });
+                setSelectedNoteId(null);
+                setMobileScreen("list");
+              }}
+            />
+          )}
+          {view.kind === "notebooks" && (
+            <NotebooksPanel
+              onSelectNotebook={(id, name) => {
+                setView({ kind: "notebook", id, name });
                 setSelectedNoteId(null);
                 setMobileScreen("list");
               }}

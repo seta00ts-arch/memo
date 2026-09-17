@@ -141,6 +141,25 @@ select {
   padding: 4px 10px;
 }
 
+.sidebar-section-link {
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: inherit;
+  padding: 0;
+  cursor: pointer;
+}
+
+.sidebar-section-link:hover,
+.sidebar-section-link.active {
+  color: var(--accent);
+}
+
+.sidebar-list--scroll {
+  max-height: 220px;
+  overflow-y: auto;
+}
+
 .sidebar-footer {
   margin-top: auto;
 }
@@ -633,11 +652,67 @@ select {
 
 .settings-panel,
 .trash-panel,
-.tags-panel {
+.tags-panel,
+.notebooks-panel {
   max-width: 640px;
   display: flex;
   flex-direction: column;
   gap: 20px;
+}
+
+.notebooks-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.notebooks-panel-header h2 {
+  margin: 0;
+}
+
+.notebooks-add-input {
+  max-width: 280px;
+}
+
+.notebooks-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.notebooks-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px 4px 4px 10px;
+}
+
+.notebooks-list-name {
+  flex: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  padding: 6px 0;
+  cursor: pointer;
+  text-align: left;
+}
+
+.notebooks-list-item .inline-input {
+  flex: 1;
+}
+
+.notebooks-list-actions {
+  display: flex;
+  gap: 2px;
 }
 
 .settings-section {
