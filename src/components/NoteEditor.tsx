@@ -27,6 +27,7 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
 
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [articleBody, setArticleBody] = useState("");
   const [sourceUrl, setSourceUrl] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [notebookId, setNotebookId] = useState<string | null>(null);
@@ -39,6 +40,7 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
     if (note) {
       setTitle(note.title);
       setBody(note.body);
+      setArticleBody(note.articleBody ?? "");
       setSourceUrl(note.sourceUrl ?? "");
       setTagsInput(note.tags.join(", "));
       setNotebookId(note.notebookId ?? null);
@@ -63,7 +65,7 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
   // 保存する単一のデバウンス関数を使う。
   const debouncedSave = useDebouncedCallback(() => {
     if (!note) return;
-    updateNote(note.id, { title, body, sourceUrl, notebookId, tags: parseTags(tagsInput) });
+    updateNote(note.id, { title, body, articleBody, sourceUrl, notebookId, tags: parseTags(tagsInput) });
   }, 600);
 
   if (!note) {
@@ -192,6 +194,24 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
         )}
       </div>
 
+      {(note.type === "article" || articleBody) && (
+        <details className="article-body-section" open={!body.trim()}>
+          <summary>原文（記事本文）</summary>
+          <p className="muted small">
+            保存した記事の原文です。自分の考えやメモは下の「コメント・メモ」に書いてください。
+          </p>
+          <textarea
+            className="body-textarea article-body-textarea"
+            value={articleBody}
+            onChange={(e) => {
+              setArticleBody(e.target.value);
+              debouncedSave();
+            }}
+            placeholder="記事の原文…"
+          />
+        </details>
+      )}
+
       <div className="editor-toolbar">
         {TOOLBAR_ACTIONS.map((a, i) => (
           <button key={a.label} title={a.title} onClick={() => applyToolbarAction(i)}>
@@ -218,7 +238,7 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
             setBody(e.target.value);
             debouncedSave();
           }}
-          placeholder="本文をMarkdownで入力…"
+          placeholder="コメント・メモをMarkdownで入力…"
         />
       )}
 

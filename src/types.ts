@@ -6,7 +6,9 @@ export interface Note {
   id: string;
   type: NoteType;
   title: string;
-  body: string; // Markdown
+  body: string; // Markdown。自分のコメント・メモ
+  /** 記事の原文（貼り付け・取得した本文）。自分のコメントと分けて保持する。 */
+  articleBody?: string;
   sourceUrl?: string;
   notebookId?: string | null;
   tags: string[];
@@ -42,6 +44,7 @@ export interface HistoryEntry {
   snapshot: {
     title: string;
     body: string;
+    articleBody?: string;
     sourceUrl?: string;
     tags: string[];
     notebookId?: string | null;

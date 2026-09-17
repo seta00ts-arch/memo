@@ -516,6 +516,23 @@ select {
   line-height: 1.6;
 }
 
+.article-body-section {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+}
+
+.article-body-section summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.article-body-section .article-body-textarea {
+  min-height: 140px;
+  margin-top: 8px;
+}
+
 .markdown-preview {
   min-height: 260px;
   border: 1px solid var(--border);

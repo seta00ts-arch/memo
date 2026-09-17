@@ -139,7 +139,12 @@ export function noteToMarkdown(note: Note): string {
   if (note.tags.length) {
     lines.push(`タグ: ${note.tags.map((t) => `#${t}`).join(" ")}`, "");
   }
-  lines.push(`作成日時: ${note.createdAt}`, `更新日時: ${note.updatedAt}`, "", "---", "", note.body);
+  lines.push(`作成日時: ${note.createdAt}`, `更新日時: ${note.updatedAt}`, "", "---", "");
+  if (note.articleBody) {
+    lines.push("## 原文", "", note.articleBody, "", "## コメント・メモ", "", note.body);
+  } else {
+    lines.push(note.body);
+  }
   return lines.join("\n");
 }
 
