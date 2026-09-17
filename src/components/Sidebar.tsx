@@ -147,16 +147,16 @@ export default function Sidebar({ view, onChangeView, onSaveArticle, onNewMemo, 
         </ul>
       </div>
 
-      {tags.length > 0 && (
-        <div className="sidebar-section">
-          <div className="sidebar-section-header">
-            <button
-              className={`sidebar-section-link ${isSameView(view, { kind: "tags" }) ? "active" : ""}`}
-              onClick={() => onChangeView({ kind: "tags" })}
-            >
-              タグ一覧
-            </button>
-          </div>
+      <div className="sidebar-section">
+        <div className="sidebar-section-header">
+          <button
+            className={`sidebar-section-link ${isSameView(view, { kind: "tags" }) ? "active" : ""}`}
+            onClick={() => onChangeView({ kind: "tags" })}
+          >
+            タグ一覧
+          </button>
+        </div>
+        {tags.length > 0 && (
           <ul className="sidebar-list">
             {tags.map((t) => (
               <li key={t}>
@@ -169,8 +169,8 @@ export default function Sidebar({ view, onChangeView, onSaveArticle, onNewMemo, 
               </li>
             ))}
           </ul>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="sidebar-footer">
         <ul className="sidebar-list">
