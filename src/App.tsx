@@ -6,6 +6,7 @@ import NoteEditor from "./components/NoteEditor";
 import SaveArticleDialog from "./components/SaveArticleDialog";
 import SettingsPanel from "./components/SettingsPanel";
 import TrashPanel from "./components/TrashPanel";
+import TagsPanel from "./components/TagsPanel";
 import type { ViewFilter } from "./viewTypes";
 
 export type MobileScreen = "sidebar" | "list" | "editor";
@@ -51,7 +52,14 @@ function App() {
     setView({ kind: "inbox" });
   }
 
-  const isSpecialView = view.kind === "settings" || view.kind === "trash";
+  async function handleNewMemo() {
+    const notebookId = view.kind === "notebook" ? view.id : null;
+    const note = await useStore.getState().createNote({ type: "memo", title: "無題のメモ", body: "", notebookId });
+    revealNoteInList(notebookId);
+    openNote(note.id);
+  }
+
+  const isSpecialView = view.kind === "settings" || view.kind === "trash" || view.kind === "tags";
 
   return (
     <div className={`app-shell mobile-${mobileScreen}`}>
@@ -71,12 +79,7 @@ function App() {
         }}
         onClose={() => setMobileScreen("list")}
         onSaveArticle={() => setSaveArticleOpen(true)}
-        onNewMemo={async () => {
-          const notebookId = view.kind === "notebook" ? view.id : null;
-          const note = await useStore.getState().createNote({ type: "memo", title: "無題のメモ", body: "", notebookId });
-          revealNoteInList(notebookId);
-          openNote(note.id);
-        }}
+        onNewMemo={handleNewMemo}
         onImportFile={async (file) => {
           const notebookId = view.kind === "notebook" ? view.id : null;
           const title = file.name.replace(/\.[^/.]+$/, "");
@@ -95,6 +98,15 @@ function App() {
         <main className="main-panel main-panel--full">
           {view.kind === "settings" && <SettingsPanel />}
           {view.kind === "trash" && <TrashPanel onOpenNote={openNote} />}
+          {view.kind === "tags" && (
+            <TagsPanel
+              onSelectTag={(tag) => {
+                setView({ kind: "tag", tag });
+                setSelectedNoteId(null);
+                setMobileScreen("list");
+              }}
+            />
+          )}
         </main>
       ) : (
         <>
@@ -102,6 +114,8 @@ function App() {
             view={view}
             selectedNoteId={selectedNoteId}
             onSelectNote={openNote}
+            onSaveArticle={() => setSaveArticleOpen(true)}
+            onNewMemo={handleNewMemo}
           />
           <NoteEditor note={selectedNote} onBack={backToList} onDeleted={backToList} />
         </>

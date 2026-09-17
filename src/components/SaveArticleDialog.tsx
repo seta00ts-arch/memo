@@ -89,7 +89,7 @@ export default function SaveArticleDialog({ defaultNotebookId, onClose, onSaved 
         {notebookName ? (
           <p className="muted small">保存先: {notebookName}</p>
         ) : (
-          <p className="muted small">保存先: 受信箱</p>
+          <p className="muted small">保存先: 未整理</p>
         )}
 
         {step === "url" && (
@@ -144,7 +144,7 @@ export default function SaveArticleDialog({ defaultNotebookId, onClose, onSaved 
                 戻る
               </button>
               <button className="btn btn-primary" disabled={saving} onClick={handleSave}>
-                {saving ? "保存中…" : "受信箱へ保存"}
+                {saving ? "保存中…" : "未整理へ保存"}
               </button>
             </div>
           </div>

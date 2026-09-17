@@ -7,25 +7,14 @@ interface Props {
   view: ViewFilter;
   selectedNoteId: string | null;
   onSelectNote: (id: string) => void;
-}
-
-function viewDescription(view: ViewFilter): string | null {
-  switch (view.kind) {
-    case "inbox":
-      return "まだノートブックに分類していないノートが入ります。保存や作成の時点で分類は必須ではありません。";
-    case "all":
-      return "ゴミ箱以外の、すべてのノート（受信箱・ノートブック分類済み含む）です。";
-    case "favorites":
-      return "お気に入りに登録したノートです。";
-    default:
-      return null;
-  }
+  onSaveArticle: () => void;
+  onNewMemo: () => void;
 }
 
 function viewTitle(view: ViewFilter): string {
   switch (view.kind) {
     case "inbox":
-      return "受信箱";
+      return "未整理";
     case "all":
       return "すべてのノート";
     case "favorites":
@@ -78,14 +67,13 @@ function formatDate(iso: string): string {
   return d.toLocaleString("ja-JP", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 }
 
-export default function NoteList({ view, selectedNoteId, onSelectNote }: Props) {
+export default function NoteList({ view, selectedNoteId, onSelectNote, onSaveArticle, onNewMemo }: Props) {
   const notes = useStore((s) => s.notes);
   const mergeNotes = useStore((s) => s.mergeNotes);
   const [query, setQuery] = useState("");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
-
-  const description = viewDescription(view);
+  const [showCreateMenu, setShowCreateMenu] = useState(false);
 
   const filtered = useMemo(() => {
     return notes
@@ -116,11 +104,42 @@ export default function NoteList({ view, selectedNoteId, onSelectNote }: Props) 
     <section className="note-list">
       <div className="note-list-header">
         <h2>{viewTitle(view)}</h2>
-        <button className="link-btn" onClick={() => setSelectMode((v) => !v)}>
-          {selectMode ? "キャンセル" : "選択"}
-        </button>
+        <div className="note-list-header-actions">
+          <div className="create-menu-wrap">
+            <button
+              className="icon-btn"
+              title="新規作成"
+              aria-label="新規作成"
+              onClick={() => setShowCreateMenu((v) => !v)}
+            >
+              ＋
+            </button>
+            {showCreateMenu && (
+              <div className="create-menu" onMouseLeave={() => setShowCreateMenu(false)}>
+                <button
+                  onClick={() => {
+                    setShowCreateMenu(false);
+                    onSaveArticle();
+                  }}
+                >
+                  記事を保存
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCreateMenu(false);
+                    onNewMemo();
+                  }}
+                >
+                  新規メモ
+                </button>
+              </div>
+            )}
+          </div>
+          <button className="link-btn" onClick={() => setSelectMode((v) => !v)}>
+            {selectMode ? "キャンセル" : "選択"}
+          </button>
+        </div>
       </div>
-      {description && <p className="muted small view-description">{description}</p>}
       <input
         className="search-input"
         type="search"

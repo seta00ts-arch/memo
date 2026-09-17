@@ -86,7 +86,7 @@ export default function Sidebar({ view, onChangeView, onSaveArticle, onNewMemo, 
             className={isSameView(view, { kind: "inbox" }) ? "active" : ""}
             onClick={() => onChangeView({ kind: "inbox" })}
           >
-            受信箱 <span className="count">{inboxCount}</span>
+            未整理 <span className="count">{inboxCount}</span>
           </button>
         </li>
         <li>
@@ -150,7 +150,12 @@ export default function Sidebar({ view, onChangeView, onSaveArticle, onNewMemo, 
       {tags.length > 0 && (
         <div className="sidebar-section">
           <div className="sidebar-section-header">
-            <span>タグ</span>
+            <button
+              className={`sidebar-section-link ${isSameView(view, { kind: "tags" }) ? "active" : ""}`}
+              onClick={() => onChangeView({ kind: "tags" })}
+            >
+              タグ一覧
+            </button>
           </div>
           <ul className="sidebar-list">
             {tags.map((t) => (
