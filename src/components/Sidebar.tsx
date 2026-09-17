@@ -111,12 +111,17 @@ export default function Sidebar({ view, onChangeView, onSaveArticle, onNewMemo, 
 
       <div className="sidebar-section">
         <div className="sidebar-section-header">
-          <span>ノートブック</span>
+          <button
+            className={`sidebar-section-link ${isSameView(view, { kind: "notebooks" }) ? "active" : ""}`}
+            onClick={() => onChangeView({ kind: "notebooks" })}
+          >
+            ノートブック
+          </button>
           <button className="icon-btn" title="ノートブックを追加" onClick={() => setAddingNotebook(true)}>
             ＋
           </button>
         </div>
-        <ul className="sidebar-list">
+        <ul className="sidebar-list sidebar-list--scroll">
           {notebooks.map((nb) => (
             <li key={nb.id}>
               <button
