@@ -26,6 +26,28 @@ npm run lint
 
 サーバーサイドは無く、静的ファイルをホスティングするだけで動作します。
 
+## 公開（GitHub Pages）
+
+個人利用のみを想定し、追加費用のかからないGitHub Pagesで公開する構成にしています。
+`main`ブランチにpushすると `.github/workflows/deploy-pages.yml` が自動でビルド・公開します。
+
+初回のみ、リポジトリの Settings → Pages → Source を「GitHub Actions」に設定してください
+（この一回だけは手動操作が必要です）。公開後のURLは次の形になります。
+
+```
+https://<GitHubユーザー名>.github.io/memo/
+```
+
+iPhone（Safari）・Windows（Edge/Chrome）どちらからもこのURLでアクセスできます。
+
+## pCloudアプリの登録
+
+1. pCloudの開発者向けページで「自分用アプリ」を登録する。
+2. アプリの **Redirect URI** に、上記の公開URL（`https://<ユーザー名>.github.io/memo/`）を設定する。
+3. 発行された **Client ID** を控える（Client Secretやパスワードはこのアプリには入力しない）。
+4. 「しおり」の設定画面でClient IDを入力し「接続する」を押すと、pCloudの認可画面に遷移し、
+   許可すると上記URLに戻ってブラウザ内で接続が完了する。
+
 ## 実装状況（2026年9月17日時点）
 
 ### 実装済み（本セッションで実装・ブラウザで動作確認済み）
