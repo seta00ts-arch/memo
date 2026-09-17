@@ -1,5 +1,5 @@
 import { openDB, type DBSchema, type IDBPDatabase } from "idb";
-import type { Note, Attachment, HistoryEntry, Notebook, AppSettings } from "./types";
+import type { Note, Attachment, HistoryEntry, Notebook, AppSettings, Tombstone } from "./types";
 
 interface ShioriDB extends DBSchema {
   notes: {
@@ -25,29 +25,38 @@ interface ShioriDB extends DBSchema {
     key: string;
     value: AppSettings;
   };
+  tombstones: {
+    key: string;
+    value: Tombstone;
+  };
 }
 
 const DB_NAME = "shiori-db";
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbPromise: Promise<IDBPDatabase<ShioriDB>> | null = null;
 
 export function getDB(): Promise<IDBPDatabase<ShioriDB>> {
   if (!dbPromise) {
     dbPromise = openDB<ShioriDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        const notes = db.createObjectStore("notes", { keyPath: "id" });
-        notes.createIndex("updatedAt", "updatedAt");
-        notes.createIndex("notebookId", "notebookId");
+      upgrade(db, oldVersion) {
+        if (oldVersion < 1) {
+          const notes = db.createObjectStore("notes", { keyPath: "id" });
+          notes.createIndex("updatedAt", "updatedAt");
+          notes.createIndex("notebookId", "notebookId");
 
-        const attachments = db.createObjectStore("attachments", { keyPath: "id" });
-        attachments.createIndex("noteId", "noteId");
+          const attachments = db.createObjectStore("attachments", { keyPath: "id" });
+          attachments.createIndex("noteId", "noteId");
 
-        const history = db.createObjectStore("history", { keyPath: "id" });
-        history.createIndex("noteId", "noteId");
+          const history = db.createObjectStore("history", { keyPath: "id" });
+          history.createIndex("noteId", "noteId");
 
-        db.createObjectStore("notebooks", { keyPath: "id" });
-        db.createObjectStore("settings", { keyPath: "id" });
+          db.createObjectStore("notebooks", { keyPath: "id" });
+          db.createObjectStore("settings", { keyPath: "id" });
+        }
+        if (oldVersion < 2) {
+          db.createObjectStore("tombstones", { keyPath: "id" });
+        }
       },
     });
   }

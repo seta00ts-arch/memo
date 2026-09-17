@@ -8,6 +8,7 @@ import type {
   Notebook,
   AppSettings,
   NoteType,
+  Tombstone,
 } from "../types";
 import { ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_SIZE } from "../types";
 
@@ -64,6 +65,11 @@ interface ShioriState {
   importAttachment: (attachment: Attachment) => Promise<void>;
   /** 同期モジュールから、リモートのノートブックを取り込む（未知のものだけ追加） */
   importNotebooks: (notebooks: Notebook[]) => Promise<void>;
+
+  /** 完全削除の同期伝播用。ローカルの削除マーカーID一覧を返す */
+  getTombstoneIds: () => Promise<Set<string>>;
+  /** 同期モジュールから、他端末発の削除マーカーを取り込む。ローカルにまだ残っていれば削除する */
+  importTombstone: (tombstone: Tombstone) => Promise<void>;
 }
 
 async function persistHistory(entry: HistoryEntry) {
@@ -190,7 +196,7 @@ export const useStore = create<ShioriState>((set, get) => ({
 
   permanentlyDeleteNote: async (id) => {
     const db = await getDB();
-    const tx = db.transaction(["notes", "attachments", "history"], "readwrite");
+    const tx = db.transaction(["notes", "attachments", "history", "tombstones"], "readwrite");
     await tx.objectStore("notes").delete(id);
     const attStore = tx.objectStore("attachments");
     const attIndex = attStore.index("noteId");
@@ -202,6 +208,10 @@ export const useStore = create<ShioriState>((set, get) => ({
     for await (const cursor of histIndex.iterate(id)) {
       await cursor.delete();
     }
+    // 削除マーカーを残す。同期時にpCloudへも伝え、他端末が同じノートを
+    // 再ダウンロードで復活させてしまわないようにする。
+    const tombstone: Tombstone = { id, deletedAt: nowIso(), deviceId: getDeviceId() };
+    await tx.objectStore("tombstones").put(tombstone);
     await tx.done;
     set((s) => ({ notes: s.notes.filter((n) => n.id !== id) }));
   },
@@ -219,7 +229,7 @@ export const useStore = create<ShioriState>((set, get) => ({
       throw new Error(`未対応の形式です: ${file.type || "unknown"}`);
     }
     if (file.size > MAX_ATTACHMENT_SIZE) {
-      throw new Error("1ファイル5MBまでです（初期案）");
+      throw new Error(`1ファイル${Math.round(MAX_ATTACHMENT_SIZE / 1024 / 1024)}MBまでです`);
     }
     const attachment: Attachment = {
       id: newId(),
@@ -347,6 +357,11 @@ export const useStore = create<ShioriState>((set, get) => ({
 
   importRemoteNote: async (remote, remoteHistory) => {
     const db = await getDB();
+
+    // 完全削除済みのノートは、リモートに古いコピーが残っていても復活させない。
+    const tombstone = await db.get("tombstones", remote.id);
+    if (tombstone) return "skipped";
+
     const local = get().notes.find((n) => n.id === remote.id);
 
     if (!local) {
@@ -411,6 +426,36 @@ export const useStore = create<ShioriState>((set, get) => ({
     for (const nb of toAdd) await tx.store.put(nb);
     await tx.done;
     set((s) => ({ notebooks: [...s.notebooks, ...toAdd] }));
+  },
+
+  getTombstoneIds: async () => {
+    const db = await getDB();
+    const all = await db.getAll("tombstones");
+    return new Set(all.map((t) => t.id));
+  },
+
+  importTombstone: async (tombstone) => {
+    const db = await getDB();
+    const existing = await db.get("tombstones", tombstone.id);
+    if (!existing) {
+      await db.put("tombstones", tombstone);
+    }
+    const stillLocal = get().notes.find((n) => n.id === tombstone.id);
+    if (!stillLocal) return;
+    const tx = db.transaction(["notes", "attachments", "history"], "readwrite");
+    await tx.objectStore("notes").delete(tombstone.id);
+    const attStore = tx.objectStore("attachments");
+    const attIndex = attStore.index("noteId");
+    for await (const cursor of attIndex.iterate(tombstone.id)) {
+      await cursor.delete();
+    }
+    const histStore = tx.objectStore("history");
+    const histIndex = histStore.index("noteId");
+    for await (const cursor of histIndex.iterate(tombstone.id)) {
+      await cursor.delete();
+    }
+    await tx.done;
+    set((s) => ({ notes: s.notes.filter((n) => n.id !== tombstone.id) }));
   },
 }));
 

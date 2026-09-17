@@ -2,16 +2,17 @@
 // 同期はバックアップと同一ではないため、全データを書き出し・読み戻しできる手段を独立して用意する。
 
 import { getDB } from "../db";
-import type { Note, Attachment, HistoryEntry, Notebook, AppSettings } from "../types";
+import type { Note, Attachment, HistoryEntry, Notebook, AppSettings, Tombstone } from "../types";
 
 interface BackupFile {
-  formatVersion: 1;
+  formatVersion: 2;
   exportedAt: string;
   notes: Note[];
   notebooks: Notebook[];
   history: HistoryEntry[];
   attachments: Array<Omit<Attachment, "data"> & { dataBase64: string }>;
   settings: AppSettings | null;
+  tombstones: Tombstone[];
 }
 
 function blobToBase64(blob: Blob): Promise<string> {
@@ -35,12 +36,13 @@ function base64ToBlob(base64: string, mimeType: string): Blob {
 
 export async function exportFullBackup(): Promise<Blob> {
   const db = await getDB();
-  const [notes, notebooks, history, attachments, settings] = await Promise.all([
+  const [notes, notebooks, history, attachments, settings, tombstones] = await Promise.all([
     db.getAll("notes"),
     db.getAll("notebooks"),
     db.getAll("history"),
     db.getAll("attachments"),
     db.get("settings", "settings"),
+    db.getAll("tombstones"),
   ]);
 
   const attachmentsEncoded = await Promise.all(
@@ -56,13 +58,14 @@ export async function exportFullBackup(): Promise<Blob> {
   );
 
   const backup: BackupFile = {
-    formatVersion: 1,
+    formatVersion: 2,
     exportedAt: new Date().toISOString(),
     notes,
     notebooks,
     history,
     attachments: attachmentsEncoded,
     settings: settings ?? null,
+    tombstones,
   };
 
   return new Blob([JSON.stringify(backup, null, 2)], { type: "application/json" });
@@ -78,8 +81,11 @@ export interface ImportSummary {
 /** バックアップの読み戻し。既存データはIDが一致すれば上書きし、そうでなければ追加する（非破壊的マージ） */
 export async function importFullBackup(file: File): Promise<ImportSummary> {
   const text = await file.text();
-  const backup = JSON.parse(text) as BackupFile;
-  if (backup.formatVersion !== 1) {
+  const backup = JSON.parse(text) as Omit<BackupFile, "formatVersion" | "tombstones"> & {
+    formatVersion: 1 | 2;
+    tombstones?: Tombstone[];
+  };
+  if (backup.formatVersion !== 1 && backup.formatVersion !== 2) {
     throw new Error("未対応のバックアップ形式です");
   }
   const db = await getDB();
@@ -110,6 +116,12 @@ export async function importFullBackup(file: File): Promise<ImportSummary> {
     await attTx.store.put(attachment);
   }
   await attTx.done;
+
+  if (backup.tombstones?.length) {
+    const tombTx = db.transaction("tombstones", "readwrite");
+    for (const t of backup.tombstones) await tombTx.store.put(t);
+    await tombTx.done;
+  }
 
   return {
     notes: backup.notes.length,
