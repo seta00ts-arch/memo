@@ -100,6 +100,11 @@ select {
   gap: 6px;
 }
 
+.sidebar-hint {
+  margin: -2px 0 0;
+  line-height: 1.4;
+}
+
 .sidebar-list {
   list-style: none;
   margin: 0;
@@ -238,6 +243,11 @@ select {
 .note-list-header h2 {
   margin: 0;
   font-size: 1.05rem;
+}
+
+.view-description {
+  margin: -4px 0 0;
+  line-height: 1.5;
 }
 
 .search-input {
@@ -400,6 +410,15 @@ select {
 .field-row {
   display: flex;
   gap: 10px;
+}
+
+.field-with-button {
+  display: flex;
+  gap: 6px;
+}
+
+.field-with-button input {
+  flex: 1;
 }
 
 .field-grow {

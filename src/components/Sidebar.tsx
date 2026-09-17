@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../store/useStore";
 import type { ViewFilter } from "../viewTypes";
+import { ALLOWED_ATTACHMENT_TYPES } from "../types";
 
 interface Props {
   view: ViewFilter;
   onChangeView: (v: ViewFilter) => void;
   onSaveArticle: () => void;
   onNewMemo: () => void;
+  onImportFile: (file: File) => void;
   onClose: () => void;
 }
 
@@ -17,7 +19,7 @@ function isSameView(a: ViewFilter, b: ViewFilter): boolean {
   return true;
 }
 
-export default function Sidebar({ view, onChangeView, onSaveArticle, onNewMemo, onClose }: Props) {
+export default function Sidebar({ view, onChangeView, onSaveArticle, onNewMemo, onImportFile, onClose }: Props) {
   const notes = useStore((s) => s.notes);
   const notebooks = useStore((s) => s.notebooks);
   const addNotebook = useStore((s) => s.addNotebook);
@@ -62,6 +64,20 @@ export default function Sidebar({ view, onChangeView, onSaveArticle, onNewMemo, 
         <button className="btn" onClick={onNewMemo}>
           新規メモ
         </button>
+        <label className="btn">
+          ファイルを取り込む
+          <input
+            type="file"
+            hidden
+            accept={ALLOWED_ATTACHMENT_TYPES.join(",")}
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onImportFile(file);
+              e.target.value = "";
+            }}
+          />
+        </label>
+        <p className="muted small sidebar-hint">PDF・画像・テキストを添付した新規ノートを作成します</p>
       </div>
 
       <ul className="sidebar-list">

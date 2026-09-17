@@ -72,4 +72,4 @@ export const ALLOWED_ATTACHMENT_TYPES = [
   "text/plain",
 ] as const;
 
-export const MAX_ATTACHMENT_SIZE = 5 * 1024 * 1024; // 5MB (F03 初期案)
+export const MAX_ATTACHMENT_SIZE = 20 * 1024 * 1024; // 20MB（F03初期案は5MBだったが、利用者要望により緩和）

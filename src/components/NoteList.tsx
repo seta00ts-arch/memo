@@ -9,6 +9,19 @@ interface Props {
   onSelectNote: (id: string) => void;
 }
 
+function viewDescription(view: ViewFilter): string | null {
+  switch (view.kind) {
+    case "inbox":
+      return "まだノートブックに分類していないノートが入ります。保存や作成の時点で分類は必須ではありません。";
+    case "all":
+      return "ゴミ箱以外の、すべてのノート（受信箱・ノートブック分類済み含む）です。";
+    case "favorites":
+      return "お気に入りに登録したノートです。";
+    default:
+      return null;
+  }
+}
+
 function viewTitle(view: ViewFilter): string {
   switch (view.kind) {
     case "inbox":
@@ -72,6 +85,8 @@ export default function NoteList({ view, selectedNoteId, onSelectNote }: Props) 
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
 
+  const description = viewDescription(view);
+
   const filtered = useMemo(() => {
     return notes
       .filter((n) => matchesView(n, view) && matchesQuery(n, query))
@@ -105,6 +120,7 @@ export default function NoteList({ view, selectedNoteId, onSelectNote }: Props) 
           {selectMode ? "キャンセル" : "選択"}
         </button>
       </div>
+      {description && <p className="muted small view-description">{description}</p>}
       <input
         className="search-input"
         type="search"
