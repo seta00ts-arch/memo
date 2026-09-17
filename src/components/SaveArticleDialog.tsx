@@ -52,7 +52,8 @@ export default function SaveArticleDialog({
   const [step, setStep] = useState<Step>("url");
   const [url, setUrl] = useState(initialUrl ?? "");
   const [title, setTitle] = useState(initialTitle ?? "");
-  const [body, setBody] = useState("");
+  const [articleBody, setArticleBody] = useState("");
+  const [comment, setComment] = useState("");
   const [fetching, setFetching] = useState(false);
   const [fetchFailed, setFetchFailed] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -90,7 +91,7 @@ export default function SaveArticleDialog({
     setFetching(false);
     if (result) {
       setTitle(result.title);
-      setBody(result.body);
+      setArticleBody(result.body);
     } else {
       setFetchFailed(true);
     }
@@ -114,7 +115,8 @@ export default function SaveArticleDialog({
       const note = await createNote({
         type: "article",
         title: title.trim() || url || "無題の記事",
-        body,
+        body: comment,
+        articleBody,
         sourceUrl: url || undefined,
         notebookId: defaultNotebookId,
       });
@@ -199,12 +201,21 @@ export default function SaveArticleDialog({
               <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="記事タイトル" />
             </label>
             <label className="field">
-              <span>本文</span>
+              <span>原文（記事本文）</span>
               <textarea
                 className="body-textarea"
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                placeholder="本文を貼り付け、またはMarkdownで入力…"
+                value={articleBody}
+                onChange={(e) => setArticleBody(e.target.value)}
+                placeholder="記事の本文を貼り付け…"
+              />
+            </label>
+            <label className="field">
+              <span>コメント・メモ（任意）</span>
+              <textarea
+                className="body-textarea article-body-textarea"
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                placeholder="自分の考えやメモをMarkdownで入力…（後からでも書けます）"
               />
             </label>
             <div className="modal-actions">

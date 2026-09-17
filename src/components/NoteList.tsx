@@ -52,6 +52,7 @@ function matchesQuery(note: Note, query: string): boolean {
   return (
     note.title.toLowerCase().includes(q) ||
     note.body.toLowerCase().includes(q) ||
+    (note.articleBody?.toLowerCase().includes(q) ?? false) ||
     (note.sourceUrl?.toLowerCase().includes(q) ?? false) ||
     note.tags.some((t) => t.toLowerCase().includes(q))
   );
@@ -143,7 +144,7 @@ export default function NoteList({ view, selectedNoteId, onSelectNote, onSaveArt
       <input
         className="search-input"
         type="search"
-        placeholder="タイトル・本文・タグを検索"
+        placeholder="タイトル・本文・原文・タグを検索"
         value={query}
         onChange={(e) => setQuery(e.target.value)}
       />
@@ -174,7 +175,7 @@ export default function NoteList({ view, selectedNoteId, onSelectNote, onSaveArt
                 {n.favorite && <span className="star">★</span>}
                 {n.title || "無題"}
               </div>
-              <div className="note-item-excerpt">{excerpt(n.body)}</div>
+              <div className="note-item-excerpt">{excerpt(n.body || n.articleBody || "")}</div>
               <div className="note-item-meta">
                 <span>{formatDate(n.updatedAt)}</span>
                 {n.type === "article" && <span className="badge">記事</span>}

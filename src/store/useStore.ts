@@ -26,6 +26,7 @@ interface NewNoteInput {
   type: NoteType;
   title: string;
   body: string;
+  articleBody?: string;
   sourceUrl?: string;
   notebookId?: string | null;
   tags?: string[];
@@ -44,7 +45,9 @@ interface ShioriState {
   createNote: (input: NewNoteInput) => Promise<Note>;
   updateNote: (
     id: string,
-    patch: Partial<Pick<Note, "title" | "body" | "sourceUrl" | "notebookId" | "tags" | "favorite">>
+    patch: Partial<
+      Pick<Note, "title" | "body" | "articleBody" | "sourceUrl" | "notebookId" | "tags" | "favorite">
+    >
   ) => Promise<void>;
   trashNote: (id: string) => Promise<void>;
   restoreNote: (id: string) => Promise<void>;
@@ -116,6 +119,7 @@ async function saveNoteWithHistory(note: Note, deviceId: string, forceSnapshot =
       snapshot: {
         title: updated.title,
         body: updated.body,
+        articleBody: updated.articleBody,
         sourceUrl: updated.sourceUrl,
         tags: updated.tags,
         notebookId: updated.notebookId,
@@ -161,6 +165,7 @@ export const useStore = create<ShioriState>((set, get) => ({
       type: input.type,
       title: input.title,
       body: input.body,
+      articleBody: input.articleBody,
       sourceUrl: input.sourceUrl,
       notebookId: input.notebookId ?? null,
       tags: input.tags ?? [],
@@ -183,6 +188,7 @@ export const useStore = create<ShioriState>((set, get) => ({
       snapshot: {
         title: note.title,
         body: note.body,
+        articleBody: note.articleBody,
         sourceUrl: note.sourceUrl,
         tags: note.tags,
         notebookId: note.notebookId,
@@ -325,6 +331,7 @@ export const useStore = create<ShioriState>((set, get) => ({
       type: original?.type ?? "memo",
       title: `${entry.snapshot.title}（履歴から複製）`,
       body: entry.snapshot.body,
+      articleBody: entry.snapshot.articleBody,
       sourceUrl: entry.snapshot.sourceUrl,
       notebookId: entry.snapshot.notebookId,
       tags: entry.snapshot.tags,
