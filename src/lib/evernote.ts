@@ -224,10 +224,28 @@ function nodeToMarkdown(node: Node, resourcesByHash: Map<string, ParsedResource>
   return "";
 }
 
+// XML宣言はドキュメントの先頭バイトでなければならないが、Evernoteの実際のエクスポートでは
+// <content><![CDATA[ の直後に改行や空白が入っている場合があり、そのままではXML宣言が
+// 2行目以降に来てしまいパースエラーになる。宣言・DOCTYPE・前後の空白をまとめて取り除く
+// （パースには不要なため）ことで、その位置ずれの影響を受けないようにする。
+function stripXmlProlog(xml: string): string {
+  return xml
+    .replace(/^﻿/, "") // BOM
+    .trim()
+    .replace(/^<\?xml[^>]*\?>/i, "")
+    .replace(/<!DOCTYPE[^>]*>/i, "")
+    .trim();
+}
+
+function hasParserError(doc: Document): boolean {
+  return doc.getElementsByTagName("parsererror").length > 0;
+}
+
 function enmlToMarkdown(enmlXml: string, resourcesByHash: Map<string, ParsedResource>): string {
-  const doc = new DOMParser().parseFromString(enmlXml.replace(/<!DOCTYPE[^>]*>/i, ""), "text/xml");
+  const doc = new DOMParser().parseFromString(stripXmlProlog(enmlXml), "text/xml");
+  if (hasParserError(doc)) return "";
   const root = doc.querySelector("en-note") ?? doc.documentElement;
-  if (!root || root.tagName === "parsererror") return "";
+  if (!root) return "";
   const markdown = elementToMarkdown(root, resourcesByHash);
   return markdown.replace(/\n{3,}/g, "\n\n").trim();
 }
@@ -245,8 +263,8 @@ export interface ParsedEvernoteNote {
 }
 
 export function parseEnex(xmlText: string): ParsedEvernoteNote[] {
-  const doc = new DOMParser().parseFromString(xmlText.replace(/<!DOCTYPE[^>]*>/i, ""), "text/xml");
-  if (doc.querySelector("parsererror")) {
+  const doc = new DOMParser().parseFromString(stripXmlProlog(xmlText), "text/xml");
+  if (hasParserError(doc)) {
     throw new Error("ENEXファイルを解析できませんでした（形式が不正です）");
   }
   const noteEls = Array.from(doc.querySelectorAll("en-export > note"));
