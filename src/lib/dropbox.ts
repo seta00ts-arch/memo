@@ -103,7 +103,8 @@ export async function createFolderIfNotExists(auth: DropboxAuth, path: string): 
   const tag = json?.error?.[".tag"];
   const conflictTag = json?.error?.path?.[".tag"];
   if (tag === "path" && conflictTag === "conflict") return; // 既に存在する場合は成功扱い
-  throw new Error(`Dropboxフォルダ作成エラー: ${path}`);
+  const detail = json?.error_summary ?? json?.error?.[".tag"] ?? `HTTPステータス${res.status}`;
+  throw new Error(`Dropboxフォルダ作成エラー: ${path} (${detail})`);
 }
 
 /** 専用フォルダ（アプリフォルダ）を確保する。App folderアクセスタイプのため起点は空文字列（Dropbox上の /Apps/しおり/ 相当） */
