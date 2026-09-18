@@ -103,6 +103,16 @@ export default function NoteList({ view, selectedNoteId, onSelectNote, onSaveArt
     onSelectNote(note.id);
   }
 
+  async function handleBulkDelete() {
+    if (selected.size === 0) return;
+    if (!window.confirm(`${selected.size}件のノートをゴミ箱に移動しますか？`)) return;
+    for (const id of selected) {
+      await trashNote(id);
+    }
+    setSelectMode(false);
+    setSelected(new Set());
+  }
+
   return (
     <section className="note-list">
       <div className="note-list-header">
@@ -156,6 +166,9 @@ export default function NoteList({ view, selectedNoteId, onSelectNote, onSaveArt
           <span>{selected.size}件選択中</span>
           <button className="btn btn-primary" disabled={selected.size < 2} onClick={handleMerge}>
             まとめる
+          </button>
+          <button className="btn danger" disabled={selected.size === 0} onClick={handleBulkDelete}>
+            ゴミ箱へ
           </button>
         </div>
       )}
