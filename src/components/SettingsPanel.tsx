@@ -9,6 +9,7 @@ import {
 } from "../lib/pcloud";
 import { syncAll, type SyncResult } from "../lib/sync";
 import { exportFullBackup, importFullBackup, downloadBlob } from "../lib/backup";
+import { importEvernoteExport } from "../lib/evernote";
 
 const redirectUri = `${window.location.origin}${window.location.pathname}`;
 
@@ -16,6 +17,7 @@ export default function SettingsPanel() {
   const settings = useStore((s) => s.settings);
   const updateSettings = useStore((s) => s.updateSettings);
   const init = useStore((s) => s.init);
+  const notebooks = useStore((s) => s.notebooks);
 
   const [clientId, setClientId] = useState(settings?.pcloudClientId ?? "");
   const [auth, setAuth] = useState<PCloudAuth | null>(getStoredAuth());
@@ -23,6 +25,9 @@ export default function SettingsPanel() {
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "done" | "failed">("idle");
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
+  const [evernoteNotebookId, setEvernoteNotebookId] = useState<string>("");
+  const [evernoteImporting, setEvernoteImporting] = useState(false);
+  const [evernoteMessage, setEvernoteMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (auth) {
@@ -74,6 +79,24 @@ export default function SettingsPanel() {
       );
     } catch (e) {
       setImportMessage(e instanceof Error ? e.message : "読み込みに失敗しました");
+    }
+  }
+
+  async function handleEvernoteImport(file: File) {
+    setEvernoteImporting(true);
+    setEvernoteMessage(null);
+    try {
+      const summary = await importEvernoteExport(file, evernoteNotebookId || null);
+      await init();
+      setEvernoteMessage(
+        `取り込み完了: ノート${summary.importedNotes}件、添付${summary.importedAttachments}件` +
+          (summary.skippedAttachments > 0 ? `（未対応形式・容量超過のためスキップした添付${summary.skippedAttachments}件）` : "") +
+          (summary.encryptedNotes > 0 ? `（暗号化されたコンテンツを含むノート${summary.encryptedNotes}件は本文が復号されていません）` : "")
+      );
+    } catch (e) {
+      setEvernoteMessage(e instanceof Error ? e.message : "取り込みに失敗しました");
+    } finally {
+      setEvernoteImporting(false);
     }
   }
 
@@ -146,6 +169,43 @@ export default function SettingsPanel() {
           </label>
         </div>
         {importMessage && <p className="muted small">{importMessage}</p>}
+      </section>
+
+      <section className="settings-section">
+        <h3>Evernoteからインポート</h3>
+        <p className="muted small">
+          Evernoteの「.enex」エクスポートファイルを取り込みます。出典URLがあるノートは記事として、
+          原文はコメント・メモと分けて取り込まれます。書式の一部（表・下線・暗号化コンテンツなど）は
+          簡易的な変換になるか失われる場合があります。
+        </p>
+        <div className="field-row">
+          <label className="field field-grow">
+            <span>取り込み先ノートブック</span>
+            <select value={evernoteNotebookId} onChange={(e) => setEvernoteNotebookId(e.target.value)}>
+              <option value="">未整理</option>
+              {notebooks.map((nb) => (
+                <option key={nb.id} value={nb.id}>
+                  {nb.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="btn">
+            {evernoteImporting ? "取り込み中…" : ".enexファイルを選ぶ"}
+            <input
+              type="file"
+              hidden
+              accept=".enex,application/xml,text/xml"
+              disabled={evernoteImporting}
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                if (file) handleEvernoteImport(file);
+                e.target.value = "";
+              }}
+            />
+          </label>
+        </div>
+        {evernoteMessage && <p className="muted small">{evernoteMessage}</p>}
       </section>
 
       <section className="settings-section">
