@@ -148,6 +148,14 @@ export function noteToMarkdown(note: Note): string {
   return lines.join("\n");
 }
 
+/** タイトル・出典・タグ・日時などのメタデータを含めず、内容のみを返す（Claude等への貼り付け用） */
+export function noteToPlainContent(note: Note): string {
+  if (note.articleBody && note.body) {
+    return `## 原文\n\n${note.articleBody}\n\n## コメント・メモ\n\n${note.body}`;
+  }
+  return note.articleBody || note.body;
+}
+
 export function downloadBlob(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
