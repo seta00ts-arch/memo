@@ -21,7 +21,8 @@ export default function TrashPanel({ onOpenNote: _onOpenNote }: Props) {
     <div className="trash-panel">
       <h2>ゴミ箱</h2>
       <p className="muted">
-        削除したノートはここから復元できます。初期版では自動的な完全削除は行いません。
+        削除したノートはここから復元できます。ゴミ箱に入れてから30日経過すると、次回アプリを
+        開いたときに自動で完全削除されます。
       </p>
       {trashed.length === 0 ? (
         <p className="muted">ゴミ箱は空です</p>
