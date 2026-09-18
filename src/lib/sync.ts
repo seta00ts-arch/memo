@@ -61,47 +61,7 @@ export async function syncAll(providerId: SyncProviderId): Promise<SyncResult> {
   };
 
   const store = useStore.getState();
-  const localNotes = await db.getAll("notes");
-  const localNotebooks = await db.getAll("notebooks");
   const localTombstoneIds = await store.getTombstoneIds();
-
-  // ---- アップロード ----
-  const remoteNoteNames = new Set((await provider.listFolder(auth, `${folder}/notes`)).map((e) => e.name));
-  for (const note of localNotes) {
-    await provider.uploadJson(auth, `${folder}/notes`, `${note.id}.json`, note);
-    result.uploadedNotes++;
-
-    const histFolderPath = `${folder}/history/${note.id}`;
-    await provider.createFolderIfNotExists(auth, histFolderPath);
-    const remoteHistNames = new Set((await provider.listFolder(auth, histFolderPath)).map((e) => e.name));
-    const localHistory = await db.getAllFromIndex("history", "noteId", note.id);
-    for (const h of localHistory) {
-      const filename = `${h.id}.json`;
-      if (remoteHistNames.has(filename)) continue; // 履歴は不変なので既存なら再送しない
-      await provider.uploadJson(auth, histFolderPath, filename, h);
-      result.uploadedHistory++;
-    }
-
-    if (note.attachmentIds.length) {
-      const remoteAttNames = new Set((await provider.listFolder(auth, `${folder}/attachments`)).map((e) => e.name));
-      for (const attId of note.attachmentIds) {
-        const att = await db.get("attachments", attId);
-        if (!att) continue;
-        const filename = `${att.id}__${att.filename}`;
-        if (remoteAttNames.has(filename)) continue;
-        await provider.uploadBlob(auth, `${folder}/attachments`, filename, att.data);
-        result.uploadedAttachments++;
-      }
-    }
-  }
-  void remoteNoteNames; // 将来的な差分検出用に取得のみ行っている
-
-  // ノートブックはノートと同様にID単位のファイルとして同期する（単一blobだと
-  // 他端末のリネーム・削除が正しく伝わらないため）。
-  for (const nb of localNotebooks) {
-    await provider.uploadJson(auth, `${folder}/notebooks`, `${nb.id}.json`, nb);
-    result.uploadedNotebooks++;
-  }
 
   // 完全削除の伝播: ローカルの削除マーカーをアップロードする。他端末が同じノートを
   // ダウンロードで復活させないよう、ノートのダウンロードより前に処理する。
@@ -129,7 +89,10 @@ export async function syncAll(providerId: SyncProviderId): Promise<SyncResult> {
     result.downloadedDeletions++;
   }
 
-  // ---- ダウンロード ----
+  // ---- ダウンロード（マージ）----
+  // アップロードより先に行う。先にアップロードしてしまうと、他端末の競合する編集を
+  // 確認する前に自分の版でリモートを上書きしてしまい、「競合時は両方の版を残す」が
+  // 機能しなくなるため（常に後からsyncした端末が勝ってしまう）。
   const remoteNoteEntries = await provider.listFolder(auth, `${folder}/notes`);
   for (const entry of remoteNoteEntries) {
     if (entry.isfolder || !entry.name.endsWith(".json")) continue;
@@ -184,6 +147,48 @@ export async function syncAll(providerId: SyncProviderId): Promise<SyncResult> {
     const before = useStore.getState().notebooks.find((n) => n.id === remoteNotebook.id);
     await store.importNotebook(remoteNotebook);
     if (!before || before.updatedAt < remoteNotebook.updatedAt) result.downloadedNotebooks++;
+  }
+
+  // ---- アップロード ----
+  // ダウンロード（マージ）の後に行う。これにより、ローカルにしかない新規ノート・
+  // リモートに追いついただけのノートに加え、競合検出でこの端末側に新しく複製された
+  // 「競合版」ノートも、ここでまとめてリモートへ反映される。
+  const localNotes = await db.getAll("notes");
+  const localNotebooks = await db.getAll("notebooks");
+
+  for (const note of localNotes) {
+    await provider.uploadJson(auth, `${folder}/notes`, `${note.id}.json`, note);
+    result.uploadedNotes++;
+
+    const histFolderPath = `${folder}/history/${note.id}`;
+    await provider.createFolderIfNotExists(auth, histFolderPath);
+    const remoteHistNames = new Set((await provider.listFolder(auth, histFolderPath)).map((e) => e.name));
+    const localHistory = await db.getAllFromIndex("history", "noteId", note.id);
+    for (const h of localHistory) {
+      const filename = `${h.id}.json`;
+      if (remoteHistNames.has(filename)) continue; // 履歴は不変なので既存なら再送しない
+      await provider.uploadJson(auth, histFolderPath, filename, h);
+      result.uploadedHistory++;
+    }
+
+    if (note.attachmentIds.length) {
+      const remoteAttNames = new Set((await provider.listFolder(auth, `${folder}/attachments`)).map((e) => e.name));
+      for (const attId of note.attachmentIds) {
+        const att = await db.get("attachments", attId);
+        if (!att) continue;
+        const filename = `${att.id}__${att.filename}`;
+        if (remoteAttNames.has(filename)) continue;
+        await provider.uploadBlob(auth, `${folder}/attachments`, filename, att.data);
+        result.uploadedAttachments++;
+      }
+    }
+  }
+
+  // ノートブックはノートと同様にID単位のファイルとして同期する（単一blobだと
+  // 他端末のリネーム・削除が正しく伝わらないため）。
+  for (const nb of localNotebooks) {
+    await provider.uploadJson(auth, `${folder}/notebooks`, `${nb.id}.json`, nb);
+    result.uploadedNotebooks++;
   }
 
   await store.updateSettings({ lastSyncAt: new Date().toISOString() });

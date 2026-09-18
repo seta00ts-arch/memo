@@ -16,6 +16,19 @@ function nowIso(): string {
   return new Date().toISOString();
 }
 
+/** 履歴スナップショットが対象とする内容フィールドが一致するかを比較する（お気に入り・ゴミ箱状態等は対象外）。 */
+function noteContentEquals(a: Note, b: Note): boolean {
+  return (
+    a.title === b.title &&
+    a.body === b.body &&
+    (a.articleBody ?? "") === (b.articleBody ?? "") &&
+    (a.sourceUrl ?? "") === (b.sourceUrl ?? "") &&
+    (a.notebookId ?? null) === (b.notebookId ?? null) &&
+    JSON.stringify(a.tags) === JSON.stringify(b.tags) &&
+    JSON.stringify(a.attachmentIds) === JSON.stringify(b.attachmentIds)
+  );
+}
+
 // 自動保存のたびに履歴スナップショットを作ると、編集中に細かい版が大量にできてしまう。
 // 前回のスナップショットから一定時間が経っていない限りは、ノート本体（notesストア）だけを
 // 更新し、履歴（historyストア）には新しい版を作らない。新しい編集セッションの最初の保存で
@@ -425,19 +438,47 @@ export const useStore = create<ShioriState>((set, get) => ({
       return "skipped";
     }
 
-    // ローカルの履歴チェーンにリモートの履歴が含まれるか確認し、含まれれば単純に前進、
-    // 含まれなければ「双方の版を残す」方針に従い、リモート版を別ノートとして複製する。
+    // 履歴チェーンの前後関係を見て、単純な前進（fast-forward）か、
+    // 本当に分岐した競合かを判定する。
     const localHistory = await db.getAllFromIndex("history", "noteId", local.id);
-    const localIds = new Set(localHistory.map((h) => h.id));
-    const remoteIsDescendant = remote.currentHistoryId ? localIds.has(remote.currentHistoryId) : false;
+    const sameHistoryPointer = local.currentHistoryId === remote.currentHistoryId;
 
-    if (remoteIsDescendant || local.updatedAt < remote.updatedAt && !hasDivergedHistory(localHistory, remoteHistory)) {
-      await db.put("notes", remote);
-      const tx = db.transaction("history", "readwrite");
-      for (const h of remoteHistory) await tx.store.put(h);
-      await tx.done;
-      set((s) => ({ notes: s.notes.map((n) => (n.id === remote.id ? remote : n)) }));
-      return "applied";
+    if (sameHistoryPointer) {
+      if (noteContentEquals(local, remote)) {
+        // 内容は同じで、お気に入り・ゴミ箱状態などスナップショット対象外のメタデータだけが違う。
+        // 内容の競合ではないので、新しい方のメタデータをそのまま採用する。
+        if (remote.updatedAt > local.updatedAt) {
+          await db.put("notes", remote);
+          set((s) => ({ notes: s.notes.map((n) => (n.id === remote.id ? remote : n)) }));
+          return "applied";
+        }
+        return "skipped"; // ローカルの方が新しい。次回のアップロードでリモートが追いつく。
+      }
+      // 同じ版から、履歴スナップショットを作らないまま（自動保存のスロットリング中に）
+      // 両端末がそれぞれ違う内容に編集した。実質的な内容の競合なので、下の競合処理で
+      // 両方の版を残す。
+    } else {
+      const localIds = new Set(localHistory.map((h) => h.id));
+      const remoteIds = new Set(remoteHistory.map((h) => h.id));
+      // リモートの履歴にローカルの現在地が含まれる = リモートはローカルの知っている状態から
+      // 前進している（他端末がfast-forwardした）ので、安全にローカルへ反映できる。
+      const remoteDescendsFromLocal = local.currentHistoryId ? remoteIds.has(local.currentHistoryId) : false;
+      // ローカルの履歴にリモートの現在地が含まれる = ローカルの方が先に進んでいるだけで、
+      // リモートはまだこちらの変更を知らない（次回のアップロードで追いつく）。
+      const localDescendsFromRemote = remote.currentHistoryId ? localIds.has(remote.currentHistoryId) : false;
+
+      if (remoteDescendsFromLocal) {
+        await db.put("notes", remote);
+        const tx = db.transaction("history", "readwrite");
+        for (const h of remoteHistory) await tx.store.put(h);
+        await tx.done;
+        set((s) => ({ notes: s.notes.map((n) => (n.id === remote.id ? remote : n)) }));
+        return "applied";
+      }
+
+      if (localDescendsFromRemote) {
+        return "skipped";
+      }
     }
 
     // 競合: リモート版を新しいノートとして複製し、両方を残す
@@ -558,13 +599,3 @@ export const useStore = create<ShioriState>((set, get) => ({
     set((s) => ({ notes: s.notes.filter((n) => n.id !== tombstone.id) }));
   },
 }));
-
-function hasDivergedHistory(localHistory: HistoryEntry[], remoteHistory: HistoryEntry[]): boolean {
-  const localIds = new Set(localHistory.map((h) => h.id));
-  const remoteIds = new Set(remoteHistory.map((h) => h.id));
-  // 共通の祖先が一つも無ければ完全な分岐とみなす
-  for (const id of localIds) {
-    if (remoteIds.has(id)) return false;
-  }
-  return localHistory.length > 0 && remoteHistory.length > 0;
-}
