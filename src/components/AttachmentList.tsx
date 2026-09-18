@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useStore } from "../store/useStore";
 import type { Attachment } from "../types";
 import { ALLOWED_ATTACHMENT_TYPES, MAX_ATTACHMENT_SIZE } from "../types";
+import AttachmentViewer from "./AttachmentViewer";
 
 interface Props {
   noteId: string;
@@ -13,6 +14,7 @@ export default function AttachmentList({ noteId }: Props) {
   const removeAttachment = useStore((s) => s.removeAttachment);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [viewing, setViewing] = useState<Attachment | null>(null);
 
   async function refresh() {
     setAttachments(await getAttachments(noteId));
@@ -72,10 +74,13 @@ export default function AttachmentList({ noteId }: Props) {
             const url = urls.get(a.id) ?? "";
             return (
               <li key={a.id} className="attachment-item">
-                <a href={url} target="_blank" rel="noreferrer" download={a.filename}>
+                <button className="attachment-name-btn" onClick={() => setViewing(a)}>
                   {a.filename}
-                </a>
+                </button>
                 <span className="muted">{Math.round(a.size / 1024)}KB</span>
+                <a className="icon-btn" href={url} download={a.filename} title="ダウンロード" aria-label="ダウンロード">
+                  ⬇
+                </a>
                 <button
                   className="icon-btn"
                   title="削除"
@@ -90,6 +95,9 @@ export default function AttachmentList({ noteId }: Props) {
             );
           })}
         </ul>
+      )}
+      {viewing && urls.has(viewing.id) && (
+        <AttachmentViewer attachment={viewing} url={urls.get(viewing.id)!} onClose={() => setViewing(null)} />
       )}
     </div>
   );

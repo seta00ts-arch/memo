@@ -610,13 +610,19 @@ select {
   gap: 8px;
 }
 
-.attachment-item a {
+.attachment-name-btn {
   flex: 1;
+  background: none;
+  border: none;
+  padding: 0;
   color: var(--accent);
   text-decoration: none;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  text-align: left;
+  cursor: pointer;
+  font-size: inherit;
 }
 
 .note-editor-footer {
@@ -862,6 +868,45 @@ select {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.attachment-viewer-modal {
+  max-width: min(90vw, 900px);
+  max-height: 90vh;
+}
+
+.attachment-viewer-title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 1rem;
+}
+
+.attachment-viewer-actions {
+  display: flex;
+  gap: 4px;
+  flex-shrink: 0;
+}
+
+.attachment-viewer-body {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+.attachment-viewer-body img {
+  max-width: 100%;
+  max-height: 75vh;
+  margin: 0 auto;
+  object-fit: contain;
+}
+
+.attachment-viewer-body iframe {
+  width: 100%;
+  height: 75vh;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: #fff;
 }
 
 .mobile-topbar {
