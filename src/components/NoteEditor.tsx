@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useStore } from "../store/useStore";
 import type { Note } from "../types";
 import { renderMarkdown, TOOLBAR_ACTIONS } from "../lib/markdown";
-import { noteToMarkdown, downloadBlob } from "../lib/backup";
+import { noteToMarkdown, noteToPlainContent, downloadBlob } from "../lib/backup";
 import { useDebouncedCallback } from "../hooks/useDebouncedCallback";
 import AttachmentList from "./AttachmentList";
 import HistoryPanel from "./HistoryPanel";
@@ -248,7 +248,7 @@ export default function NoteEditor({ note, onBack, onDeleted }: Props) {
         <button
           className="link-btn"
           onClick={async () => {
-            await navigator.clipboard.writeText(noteToMarkdown(note));
+            await navigator.clipboard.writeText(noteToPlainContent(note));
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           }}
