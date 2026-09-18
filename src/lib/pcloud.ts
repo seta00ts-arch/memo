@@ -25,6 +25,7 @@ export function buildAuthorizeUrl(clientId: string, redirectUri: string): string
     client_id: clientId,
     response_type: "token",
     redirect_uri: redirectUri,
+    state: "pcloud",
   });
   return `${AUTHORIZE_BASE}?${params.toString()}`;
 }
@@ -32,7 +33,7 @@ export function buildAuthorizeUrl(clientId: string, redirectUri: string): string
 /** OAuthリダイレクト後のURLフラグメントからトークンを取り出し、セッションに保存する */
 export function captureAuthFromLocation(): PCloudAuth | null {
   const hash = window.location.hash;
-  if (!hash || !hash.includes("access_token")) return null;
+  if (!hash || !hash.includes("access_token") || !hash.includes("state=pcloud")) return null;
   const params = new URLSearchParams(hash.replace(/^#/, ""));
   const accessToken = params.get("access_token");
   const hostname = params.get("hostname") || "api.pcloud.com";
@@ -151,3 +152,22 @@ async function getFileLink(auth: PCloudAuth, path: string): Promise<string> {
 
 export { APP_FOLDER_NAME };
 export type { RemoteEntry };
+
+import type { StorageProvider } from "./storageProvider";
+
+export const pcloudProvider: StorageProvider = {
+  id: "pcloud",
+  label: "pCloud",
+  buildAuthorizeUrl,
+  captureAuthFromLocation,
+  getStoredAuth,
+  clearAuth,
+  verifyAuth: (auth) => verifyAuth(auth as PCloudAuth),
+  ensureAppFolder: (auth) => ensureAppFolder(auth as PCloudAuth),
+  createFolderIfNotExists: (auth, path) => createFolderIfNotExists(auth as PCloudAuth, path),
+  listFolder: (auth, path) => listFolder(auth as PCloudAuth, path),
+  uploadJson: (auth, folderPath, filename, data) => uploadJson(auth as PCloudAuth, folderPath, filename, data),
+  uploadBlob: (auth, folderPath, filename, blob) => uploadBlob(auth as PCloudAuth, folderPath, filename, blob),
+  downloadJson: (auth, path) => downloadJson(auth as PCloudAuth, path),
+  downloadBlob: (auth, path) => downloadBlob(auth as PCloudAuth, path),
+};

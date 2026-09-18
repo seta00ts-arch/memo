@@ -4,18 +4,23 @@
 
 import { getDB } from "../db";
 import { useStore } from "../store/useStore";
-import type { Note, HistoryEntry, Notebook, Tombstone } from "../types";
-import {
-  getStoredAuth,
-  ensureAppFolder,
-  createFolderIfNotExists,
-  listFolder,
-  uploadJson,
-  uploadBlob,
-  downloadJson,
-  downloadBlob,
-  type PCloudAuth,
-} from "./pcloud";
+import type { Note, HistoryEntry, Notebook, Tombstone, SyncProviderId } from "../types";
+import type { StorageProvider, StoredAuth } from "./storageProvider";
+import { pcloudProvider } from "./pcloud";
+import { dropboxProvider } from "./dropbox";
+
+const PROVIDERS: Record<SyncProviderId, StorageProvider> = {
+  pcloud: pcloudProvider,
+  dropbox: dropboxProvider,
+};
+
+export function getProvider(id: SyncProviderId): StorageProvider {
+  return PROVIDERS[id];
+}
+
+export function getAllProviders(): StorageProvider[] {
+  return Object.values(PROVIDERS);
+}
 
 export interface SyncResult {
   uploadedNotes: number;
@@ -30,15 +35,16 @@ export interface SyncResult {
   conflicts: number;
 }
 
-function requireAuth(): PCloudAuth {
-  const auth = getStoredAuth();
-  if (!auth) throw new Error("pCloudに未接続です。設定画面から接続してください。");
+function requireAuth(provider: StorageProvider): StoredAuth {
+  const auth = provider.getStoredAuth();
+  if (!auth) throw new Error(`${provider.label}に未接続です。設定画面から接続してください。`);
   return auth;
 }
 
-export async function syncAll(): Promise<SyncResult> {
-  const auth = requireAuth();
-  const folder = await ensureAppFolder(auth);
+export async function syncAll(providerId: SyncProviderId): Promise<SyncResult> {
+  const provider = getProvider(providerId);
+  const auth = requireAuth(provider);
+  const folder = await provider.ensureAppFolder(auth);
   const db = await getDB();
 
   const result: SyncResult = {
@@ -60,30 +66,30 @@ export async function syncAll(): Promise<SyncResult> {
   const localTombstoneIds = await store.getTombstoneIds();
 
   // ---- アップロード ----
-  const remoteNoteNames = new Set((await listFolder(auth, `${folder}/notes`)).map((e) => e.name));
+  const remoteNoteNames = new Set((await provider.listFolder(auth, `${folder}/notes`)).map((e) => e.name));
   for (const note of localNotes) {
-    await uploadJson(auth, `${folder}/notes`, `${note.id}.json`, note);
+    await provider.uploadJson(auth, `${folder}/notes`, `${note.id}.json`, note);
     result.uploadedNotes++;
 
     const histFolderPath = `${folder}/history/${note.id}`;
-    await createFolderIfNotExists(auth, histFolderPath);
-    const remoteHistNames = new Set((await listFolder(auth, histFolderPath)).map((e) => e.name));
+    await provider.createFolderIfNotExists(auth, histFolderPath);
+    const remoteHistNames = new Set((await provider.listFolder(auth, histFolderPath)).map((e) => e.name));
     const localHistory = await db.getAllFromIndex("history", "noteId", note.id);
     for (const h of localHistory) {
       const filename = `${h.id}.json`;
       if (remoteHistNames.has(filename)) continue; // 履歴は不変なので既存なら再送しない
-      await uploadJson(auth, histFolderPath, filename, h);
+      await provider.uploadJson(auth, histFolderPath, filename, h);
       result.uploadedHistory++;
     }
 
     if (note.attachmentIds.length) {
-      const remoteAttNames = new Set((await listFolder(auth, `${folder}/attachments`)).map((e) => e.name));
+      const remoteAttNames = new Set((await provider.listFolder(auth, `${folder}/attachments`)).map((e) => e.name));
       for (const attId of note.attachmentIds) {
         const att = await db.get("attachments", attId);
         if (!att) continue;
         const filename = `${att.id}__${att.filename}`;
         if (remoteAttNames.has(filename)) continue;
-        await uploadBlob(auth, `${folder}/attachments`, filename, att.data);
+        await provider.uploadBlob(auth, `${folder}/attachments`, filename, att.data);
         result.uploadedAttachments++;
       }
     }
@@ -93,7 +99,7 @@ export async function syncAll(): Promise<SyncResult> {
   // ノートブックはノートと同様にID単位のファイルとして同期する（単一blobだと
   // 他端末のリネーム・削除が正しく伝わらないため）。
   for (const nb of localNotebooks) {
-    await uploadJson(auth, `${folder}/notebooks`, `${nb.id}.json`, nb);
+    await provider.uploadJson(auth, `${folder}/notebooks`, `${nb.id}.json`, nb);
     result.uploadedNotebooks++;
   }
 
@@ -101,42 +107,42 @@ export async function syncAll(): Promise<SyncResult> {
   // ダウンロードで復活させないよう、ノートのダウンロードより前に処理する。
   const deletedFolderPath = `${folder}/deleted`;
   if (localTombstoneIds.size) {
-    const remoteTombstoneNames = new Set((await listFolder(auth, deletedFolderPath)).map((e) => e.name));
+    const remoteTombstoneNames = new Set((await provider.listFolder(auth, deletedFolderPath)).map((e) => e.name));
     for (const id of localTombstoneIds) {
       const filename = `${id}.json`;
       if (remoteTombstoneNames.has(filename)) continue;
       const tombstone = await db.get("tombstones", id);
       if (!tombstone) continue;
-      await uploadJson(auth, deletedFolderPath, filename, tombstone);
+      await provider.uploadJson(auth, deletedFolderPath, filename, tombstone);
       result.uploadedDeletions++;
     }
   }
 
   // 完全削除の伝播: 他端末発の削除マーカーを取り込む（まだローカルに残っているノートは削除する）
-  const remoteTombstoneEntries = await listFolder(auth, deletedFolderPath);
+  const remoteTombstoneEntries = await provider.listFolder(auth, deletedFolderPath);
   for (const entry of remoteTombstoneEntries) {
     if (entry.isfolder || !entry.name.endsWith(".json")) continue;
     const id = entry.name.replace(/\.json$/, "");
     if (localTombstoneIds.has(id)) continue;
-    const tombstone = await downloadJson<Tombstone>(auth, `${deletedFolderPath}/${entry.name}`);
+    const tombstone = await provider.downloadJson<Tombstone>(auth, `${deletedFolderPath}/${entry.name}`);
     await store.importTombstone(tombstone);
     result.downloadedDeletions++;
   }
 
   // ---- ダウンロード ----
-  const remoteNoteEntries = await listFolder(auth, `${folder}/notes`);
+  const remoteNoteEntries = await provider.listFolder(auth, `${folder}/notes`);
   for (const entry of remoteNoteEntries) {
     if (entry.isfolder || !entry.name.endsWith(".json")) continue;
-    const remoteNote = await downloadJson<Note>(auth, `${folder}/notes/${entry.name}`);
+    const remoteNote = await provider.downloadJson<Note>(auth, `${folder}/notes/${entry.name}`);
 
     const histFolderPath = `${folder}/history/${remoteNote.id}`;
     let remoteHistory: HistoryEntry[] = [];
     try {
-      const histEntries = await listFolder(auth, histFolderPath);
+      const histEntries = await provider.listFolder(auth, histFolderPath);
       remoteHistory = await Promise.all(
         histEntries
           .filter((e) => !e.isfolder && e.name.endsWith(".json"))
-          .map((e) => downloadJson<HistoryEntry>(auth, `${histFolderPath}/${e.name}`))
+          .map((e) => provider.downloadJson<HistoryEntry>(auth, `${histFolderPath}/${e.name}`))
       );
     } catch {
       remoteHistory = [];
@@ -153,10 +159,10 @@ export async function syncAll(): Promise<SyncResult> {
       for (const attId of remoteNote.attachmentIds) {
         const existing = await db.get("attachments", attId);
         if (existing) continue;
-        const remoteAttEntries = await listFolder(auth, `${folder}/attachments`);
+        const remoteAttEntries = await provider.listFolder(auth, `${folder}/attachments`);
         const match = remoteAttEntries.find((e) => e.name.startsWith(`${attId}__`));
         if (!match) continue;
-        const blob = await downloadBlob(auth, `${folder}/attachments/${match.name}`);
+        const blob = await provider.downloadBlob(auth, `${folder}/attachments/${match.name}`);
         await store.importAttachment({
           id: attId,
           noteId: remoteNote.id,
@@ -171,10 +177,10 @@ export async function syncAll(): Promise<SyncResult> {
     }
   }
 
-  const remoteNotebookEntries = await listFolder(auth, `${folder}/notebooks`);
+  const remoteNotebookEntries = await provider.listFolder(auth, `${folder}/notebooks`);
   for (const entry of remoteNotebookEntries) {
     if (entry.isfolder || !entry.name.endsWith(".json")) continue;
-    const remoteNotebook = await downloadJson<Notebook>(auth, `${folder}/notebooks/${entry.name}`);
+    const remoteNotebook = await provider.downloadJson<Notebook>(auth, `${folder}/notebooks/${entry.name}`);
     const before = useStore.getState().notebooks.find((n) => n.id === remoteNotebook.id);
     await store.importNotebook(remoteNotebook);
     if (!before || before.updatedAt < remoteNotebook.updatedAt) result.downloadedNotebooks++;

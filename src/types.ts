@@ -75,10 +75,15 @@ export interface Tombstone {
 
 export type SyncStatus = "unconnected" | "syncing" | "done" | "failed";
 
+export type SyncProviderId = "pcloud" | "dropbox";
+
 export interface AppSettings {
   id: "settings";
+  /** 同期先として選択中のプロバイダ。未選択ならローカルのみで同期は行わない */
+  syncProvider?: SyncProviderId;
   pcloudClientId?: string;
   pcloudFolderPath?: string; // 専用フォルダ
+  dropboxClientId?: string;
   deviceId: string;
   lastSyncAt?: string | null;
 }
