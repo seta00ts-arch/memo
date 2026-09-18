@@ -1,17 +1,16 @@
 import { useEffect, useState } from "react";
 import { useStore } from "../store/useStore";
-import {
-  buildAuthorizeUrl,
-  getStoredAuth,
-  clearAuth,
-  verifyAuth,
-  type PCloudAuth,
-} from "../lib/pcloud";
-import { syncAll, type SyncResult } from "../lib/sync";
+import type { SyncProviderId } from "../types";
+import type { StoredAuth } from "../lib/storageProvider";
+import { syncAll, getProvider, getAllProviders, type SyncResult } from "../lib/sync";
 import { exportFullBackup, importFullBackup, downloadBlob } from "../lib/backup";
 import { importEvernoteExport } from "../lib/evernote";
 
 const redirectUri = `${window.location.origin}${window.location.pathname}`;
+
+function clientIdKey(providerId: SyncProviderId): "pcloudClientId" | "dropboxClientId" {
+  return providerId === "pcloud" ? "pcloudClientId" : "dropboxClientId";
+}
 
 export default function SettingsPanel() {
   const settings = useStore((s) => s.settings);
@@ -19,8 +18,11 @@ export default function SettingsPanel() {
   const init = useStore((s) => s.init);
   const notebooks = useStore((s) => s.notebooks);
 
-  const [clientId, setClientId] = useState(settings?.pcloudClientId ?? "");
-  const [auth, setAuth] = useState<PCloudAuth | null>(getStoredAuth());
+  const [providerId, setProviderId] = useState<SyncProviderId>(settings?.syncProvider ?? "pcloud");
+  const provider = getProvider(providerId);
+
+  const [clientId, setClientId] = useState(settings?.[clientIdKey(providerId)] ?? "");
+  const [auth, setAuth] = useState<StoredAuth | null>(provider.getStoredAuth());
   const [connectionOk, setConnectionOk] = useState<boolean | null>(null);
   const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "done" | "failed">("idle");
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
@@ -29,20 +31,34 @@ export default function SettingsPanel() {
   const [evernoteImporting, setEvernoteImporting] = useState(false);
   const [evernoteMessage, setEvernoteMessage] = useState<string | null>(null);
 
+  // プロバイダ切り替え時、そのプロバイダのClient ID・接続状態を出し直す
+  useEffect(() => {
+    setClientId(settings?.[clientIdKey(providerId)] ?? "");
+    setAuth(provider.getStoredAuth());
+    setConnectionOk(null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [providerId]);
+
   useEffect(() => {
     if (auth) {
-      verifyAuth(auth).then(setConnectionOk);
+      provider.verifyAuth(auth).then(setConnectionOk);
     }
-  }, [auth]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [auth, providerId]);
+
+  async function handleProviderChange(next: SyncProviderId) {
+    setProviderId(next);
+    await updateSettings({ syncProvider: next });
+  }
 
   async function handleConnect() {
     if (!clientId.trim()) return;
-    await updateSettings({ pcloudClientId: clientId.trim() });
-    window.location.href = buildAuthorizeUrl(clientId.trim(), redirectUri);
+    await updateSettings({ syncProvider: providerId, [clientIdKey(providerId)]: clientId.trim() });
+    window.location.href = provider.buildAuthorizeUrl(clientId.trim(), redirectUri);
   }
 
   function handleDisconnect() {
-    clearAuth();
+    provider.clearAuth();
     setAuth(null);
     setConnectionOk(null);
   }
@@ -51,7 +67,7 @@ export default function SettingsPanel() {
     setSyncStatus("syncing");
     setSyncMessage(null);
     try {
-      const result: SyncResult = await syncAll();
+      const result: SyncResult = await syncAll(providerId);
       setSyncStatus("done");
       setSyncMessage(
         `アップロード ノート${result.uploadedNotes}件/履歴${result.uploadedHistory}件/添付${result.uploadedAttachments}件/ノートブック${result.uploadedNotebooks}件/削除${result.uploadedDeletions}件、` +
@@ -105,10 +121,23 @@ export default function SettingsPanel() {
       <h2>設定</h2>
 
       <section className="settings-section">
-        <h3>pCloud接続</h3>
+        <h3>クラウド同期</h3>
+        <div className="field-row">
+          <label className="field field-grow">
+            <span>同期先</span>
+            <select value={providerId} onChange={(e) => handleProviderChange(e.target.value as SyncProviderId)}>
+              {getAllProviders().map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
         <p className="muted small">
-          パスワードやClient Secretは入力しません。pCloud側で自分用アプリを登録し、以下のURLを戻り先（Redirect
-          URI）として設定してください。
+          パスワードやClient Secret（App Secret）は入力しません。{provider.label}側で自分用アプリを登録し、
+          以下のURLを戻り先（Redirect URI）として設定してください。
+          {providerId === "dropbox" && "（アクセス種類は「App folder」を選ぶと、しおり専用フォルダのみにアクセスが限定されます）"}
         </p>
         <p className="redirect-uri">{redirectUri}</p>
 
@@ -126,7 +155,11 @@ export default function SettingsPanel() {
           <div className="field-row">
             <label className="field field-grow">
               <span>Client ID</span>
-              <input value={clientId} onChange={(e) => setClientId(e.target.value)} placeholder="pCloud Client ID" />
+              <input
+                value={clientId}
+                onChange={(e) => setClientId(e.target.value)}
+                placeholder={`${provider.label} Client ID`}
+              />
             </label>
             <button className="btn btn-primary" onClick={handleConnect} disabled={!clientId.trim()}>
               接続する
