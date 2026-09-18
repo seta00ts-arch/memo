@@ -35,6 +35,9 @@ function noteContentEquals(a: Note, b: Note): boolean {
 // 自然に区切りができる。
 const HISTORY_SNAPSHOT_INTERVAL_MS = 5 * 60 * 1000; // 5分
 
+// ゴミ箱に入れてから一定期間が経過したノートは、起動時に自動で完全削除する。
+const TRASH_RETENTION_MS = 30 * 24 * 60 * 60 * 1000; // 30日
+
 interface NewNoteInput {
   type: NoteType;
   title: string;
@@ -165,6 +168,15 @@ export const useStore = create<ShioriState>((set, get) => ({
     }
     notes.sort((a, b) => (a.updatedAt < b.updatedAt ? 1 : -1));
     set({ notes, notebooks, settings: finalSettings, loaded: true });
+
+    // ゴミ箱の自動削除（30日経過したもの）。削除マーカーも作られるので他端末にも伝わる。
+    const now = Date.now();
+    const expired = notes.filter(
+      (n) => n.trashed && n.trashedAt && now - new Date(n.trashedAt).getTime() >= TRASH_RETENTION_MS
+    );
+    for (const n of expired) {
+      await get().permanentlyDeleteNote(n.id);
+    }
   },
 
   createNote: async (input) => {

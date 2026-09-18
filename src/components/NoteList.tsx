@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useStore } from "../store/useStore";
 import type { ViewFilter } from "../viewTypes";
 import type { Note } from "../types";
+import SwipeToDelete from "./SwipeToDelete";
 
 interface Props {
   view: ViewFilter;
@@ -71,6 +72,7 @@ function formatDate(iso: string): string {
 export default function NoteList({ view, selectedNoteId, onSelectNote, onSaveArticle, onNewMemo }: Props) {
   const notes = useStore((s) => s.notes);
   const mergeNotes = useStore((s) => s.mergeNotes);
+  const trashNote = useStore((s) => s.trashNote);
   const [query, setQuery] = useState("");
   const [selectMode, setSelectMode] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -170,23 +172,25 @@ export default function NoteList({ view, selectedNoteId, onSelectNote, onSaveArt
                 aria-label={`${n.title}を選択`}
               />
             )}
-            <button className="note-item" onClick={() => onSelectNote(n.id)}>
-              <div className="note-item-title">
-                {n.favorite && <span className="star">★</span>}
-                {n.title || "無題"}
-              </div>
-              <div className="note-item-excerpt">{excerpt(n.body || n.articleBody || "")}</div>
-              <div className="note-item-meta">
-                <span>{formatDate(n.updatedAt)}</span>
-                {n.type === "article" && <span className="badge">記事</span>}
-                {n.type === "summary" && <span className="badge">まとめ</span>}
-                {n.tags.map((t) => (
-                  <span key={t} className="badge badge-tag">
-                    #{t}
-                  </span>
-                ))}
-              </div>
-            </button>
+            <SwipeToDelete onDelete={() => trashNote(n.id)} deleteLabel="ゴミ箱へ" disabled={selectMode}>
+              <button className="note-item" onClick={() => onSelectNote(n.id)}>
+                <div className="note-item-title">
+                  {n.favorite && <span className="star">★</span>}
+                  {n.title || "無題"}
+                </div>
+                <div className="note-item-excerpt">{excerpt(n.body || n.articleBody || "")}</div>
+                <div className="note-item-meta">
+                  <span>{formatDate(n.updatedAt)}</span>
+                  {n.type === "article" && <span className="badge">記事</span>}
+                  {n.type === "summary" && <span className="badge">まとめ</span>}
+                  {n.tags.map((t) => (
+                    <span key={t} className="badge badge-tag">
+                      #{t}
+                    </span>
+                  ))}
+                </div>
+              </button>
+            </SwipeToDelete>
           </li>
         ))}
       </ul>

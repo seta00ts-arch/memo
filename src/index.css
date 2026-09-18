@@ -343,6 +343,40 @@ select {
   gap: 4px;
 }
 
+.swipe-row {
+  position: relative;
+  flex: 1;
+  overflow: hidden;
+  border-radius: 10px;
+}
+
+.swipe-row-delete-bg {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  background: #d33a4b;
+  border-radius: 10px;
+}
+
+.swipe-row-delete-btn {
+  width: 76px;
+  height: 100%;
+  border: none;
+  background: none;
+  color: #fff;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.swipe-row-content {
+  position: relative;
+  background: var(--bg);
+  touch-action: pan-y;
+  transition: transform 0.15s ease-out;
+}
+
 .note-item:hover {
   background: var(--accent-soft);
 }

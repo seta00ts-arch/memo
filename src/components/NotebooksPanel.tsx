@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { useStore } from "../store/useStore";
+import SwipeToDelete from "./SwipeToDelete";
 
 interface Props {
   onSelectNotebook: (id: string, name: string) => void;
@@ -48,6 +49,12 @@ export default function NotebooksPanel({ onSelectNotebook }: Props) {
     setEditingId(null);
   }
 
+  function handleDelete(id: string, name: string) {
+    if (window.confirm(`「${name}」を削除します。中のノートは未整理に戻ります。よろしいですか？`)) {
+      removeNotebook(id);
+    }
+  }
+
   return (
     <div className="notebooks-panel">
       <div className="notebooks-panel-header">
@@ -81,48 +88,44 @@ export default function NotebooksPanel({ onSelectNotebook }: Props) {
       ) : (
         <ul className="notebooks-list">
           {sorted.map((nb) => (
-            <li key={nb.id} className="notebooks-list-item">
-              {editingId === nb.id ? (
-                <input
-                  autoFocus
-                  className="inline-input"
-                  value={editingName}
-                  onChange={(e) => setEditingName(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") handleRename(nb.id);
-                    if (e.key === "Escape") setEditingId(null);
-                  }}
-                  onBlur={() => handleRename(nb.id)}
-                />
-              ) : (
-                <button className="notebooks-list-name" onClick={() => onSelectNotebook(nb.id, nb.name)}>
-                  <span>{nb.name}</span>
-                  <span className="count">{counts.get(nb.id) ?? 0}</span>
-                </button>
-              )}
-              <div className="notebooks-list-actions">
-                <button
-                  className="icon-btn"
-                  title="名前を変更"
-                  onClick={() => {
-                    setEditingId(nb.id);
-                    setEditingName(nb.name);
-                  }}
-                >
-                  ✎
-                </button>
-                <button
-                  className="icon-btn"
-                  title="削除"
-                  onClick={() => {
-                    if (window.confirm(`「${nb.name}」を削除します。中のノートは未整理に戻ります。よろしいですか？`)) {
-                      removeNotebook(nb.id);
-                    }
-                  }}
-                >
-                  ✕
-                </button>
-              </div>
+            <li key={nb.id}>
+              <SwipeToDelete onDelete={() => handleDelete(nb.id, nb.name)} disabled={editingId === nb.id}>
+                <div className="notebooks-list-item">
+                  {editingId === nb.id ? (
+                    <input
+                      autoFocus
+                      className="inline-input"
+                      value={editingName}
+                      onChange={(e) => setEditingName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") handleRename(nb.id);
+                        if (e.key === "Escape") setEditingId(null);
+                      }}
+                      onBlur={() => handleRename(nb.id)}
+                    />
+                  ) : (
+                    <button className="notebooks-list-name" onClick={() => onSelectNotebook(nb.id, nb.name)}>
+                      <span>{nb.name}</span>
+                      <span className="count">{counts.get(nb.id) ?? 0}</span>
+                    </button>
+                  )}
+                  <div className="notebooks-list-actions">
+                    <button
+                      className="icon-btn"
+                      title="名前を変更"
+                      onClick={() => {
+                        setEditingId(nb.id);
+                        setEditingName(nb.name);
+                      }}
+                    >
+                      ✎
+                    </button>
+                    <button className="icon-btn" title="削除" onClick={() => handleDelete(nb.id, nb.name)}>
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              </SwipeToDelete>
             </li>
           ))}
         </ul>
