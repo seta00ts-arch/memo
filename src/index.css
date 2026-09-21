@@ -672,6 +672,15 @@ select {
   font-size: 0.85rem;
 }
 
+.warning-text {
+  color: var(--accent);
+  font-size: 0.85rem;
+}
+
+.sync-message {
+  white-space: pre-line;
+}
+
 .main-panel--full {
   grid-column: 2 / 4;
   overflow-y: auto;
