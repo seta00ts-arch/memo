@@ -24,7 +24,7 @@ export default function SettingsPanel() {
   const [clientId, setClientId] = useState(settings?.[clientIdKey(providerId)] ?? "");
   const [auth, setAuth] = useState<StoredAuth | null>(provider.getStoredAuth());
   const [connectionOk, setConnectionOk] = useState<boolean | null>(null);
-  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "done" | "failed">("idle");
+  const [syncStatus, setSyncStatus] = useState<"idle" | "syncing" | "done" | "partial" | "failed">("idle");
   const [syncMessage, setSyncMessage] = useState<string | null>(null);
   const [importMessage, setImportMessage] = useState<string | null>(null);
   const [evernoteNotebookId, setEvernoteNotebookId] = useState<string>("");
@@ -68,11 +68,16 @@ export default function SettingsPanel() {
     setSyncMessage(null);
     try {
       const result: SyncResult = await syncAll(providerId);
-      setSyncStatus("done");
+      setSyncStatus(result.errors.length > 0 ? "partial" : "done");
       setSyncMessage(
         `アップロード ノート${result.uploadedNotes}件/履歴${result.uploadedHistory}件/添付${result.uploadedAttachments}件/ノートブック${result.uploadedNotebooks}件/削除${result.uploadedDeletions}件、` +
           `ダウンロード ノート${result.downloadedNotes}件/添付${result.downloadedAttachments}件/ノートブック${result.downloadedNotebooks}件/削除${result.downloadedDeletions}件` +
-          (result.conflicts > 0 ? `（うち競合${result.conflicts}件は両方の版を保持しました）` : "")
+          (result.conflicts > 0 ? `（うち競合${result.conflicts}件は両方の版を保持しました）` : "") +
+          (result.errors.length > 0
+            ? `\n一部の項目で失敗しました（${result.errors.length}件、通信環境が悪いと起こることがあります。もう一度同期すると再試行されます）:\n` +
+              result.errors.slice(0, 5).join("\n") +
+              (result.errors.length > 5 ? `\n…他${result.errors.length - 5}件` : "")
+            : "")
       );
     } catch (e) {
       setSyncStatus("failed");
@@ -175,7 +180,15 @@ export default function SettingsPanel() {
             <span className="muted small">前回同期: {new Date(settings.lastSyncAt).toLocaleString("ja-JP")}</span>
           )}
         </div>
-        {syncMessage && <p className={syncStatus === "failed" ? "error-text" : "muted small"}>{syncMessage}</p>}
+        {syncMessage && (
+          <p
+            className={
+              syncStatus === "failed" ? "error-text sync-message" : syncStatus === "partial" ? "warning-text sync-message" : "muted small sync-message"
+            }
+          >
+            {syncMessage}
+          </p>
+        )}
         <p className="muted small">
           通信に失敗しても端末内のデータは消えません。同期はバックアップの代わりにはならないため、下記の書き出しも定期的にご利用ください。
         </p>
