@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useStore } from "./store/useStore";
+import { useAutoSync } from "./hooks/useAutoSync";
 import Sidebar from "./components/Sidebar";
 import NoteList from "./components/NoteList";
 import NoteEditor from "./components/NoteEditor";
@@ -26,6 +27,8 @@ function App() {
   useEffect(() => {
     init();
   }, [init]);
+
+  useAutoSync();
 
   useEffect(() => {
     // iOSショートカット等から ?share_url=...&share_title=... で開かれた場合、

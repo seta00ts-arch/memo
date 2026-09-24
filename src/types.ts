@@ -86,6 +86,8 @@ export interface AppSettings {
   dropboxClientId?: string;
   deviceId: string;
   lastSyncAt?: string | null;
+  /** アプリを開いている間の自動同期。未設定（undefined）は有効として扱う */
+  autoSync?: boolean;
 }
 
 export const ALLOWED_ATTACHMENT_TYPES = [

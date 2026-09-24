@@ -172,6 +172,19 @@ export default function SettingsPanel() {
           </div>
         )}
 
+        <label className="field-row auto-sync-toggle">
+          <input
+            type="checkbox"
+            checked={settings?.autoSync !== false}
+            onChange={(e) => updateSettings({ autoSync: e.target.checked })}
+          />
+          <span>自動同期を有効にする（アプリを開いている間、5分おきに自動で同期します）</span>
+        </label>
+        <p className="muted small">
+          ブラウザのタブ・アプリを閉じている間は同期されません（Webアプリの仕組み上、完全にバックグラウンドで
+          動かし続けることはできません）。アプリを開いたときに自動で同期されます。
+        </p>
+
         <div className="sync-controls">
           <button className="btn" disabled={!auth || syncStatus === "syncing"} onClick={handleSync}>
             {syncStatus === "syncing" ? "同期中…" : "今すぐ同期"}
