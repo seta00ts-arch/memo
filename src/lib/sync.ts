@@ -41,6 +41,22 @@ function describeError(e: unknown): string {
   return e instanceof Error ? e.message : String(e);
 }
 
+// 同時実行数を絞りつつ並列実行する。クラウドAPIのレイテンシ（1件ごとの往復時間）が
+// 同期時間の大半を占めるため、直列実行よりも大幅に速くなる。数を絞るのは、
+// レート制限（特にDropbox）に配慮するため。
+const CONCURRENCY = 4;
+
+async function runConcurrently<T>(items: T[], worker: (item: T) => Promise<void>): Promise<void> {
+  let index = 0;
+  async function runNext(): Promise<void> {
+    const i = index++;
+    if (i >= items.length) return;
+    await worker(items[i]);
+    await runNext();
+  }
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY, items.length) }, runNext));
+}
+
 function requireAuth(provider: StorageProvider): StoredAuth {
   const auth = provider.getStoredAuth();
   if (!auth) throw new Error(`${provider.label}に未接続です。設定画面から接続してください。`);
@@ -75,26 +91,27 @@ export async function syncAll(providerId: SyncProviderId): Promise<SyncResult> {
   const deletedFolderPath = `${folder}/deleted`;
   if (localTombstoneIds.size) {
     const remoteTombstoneNames = new Set((await provider.listFolder(auth, deletedFolderPath)).map((e) => e.name));
-    for (const id of localTombstoneIds) {
+    const idsToUpload = Array.from(localTombstoneIds).filter((id) => !remoteTombstoneNames.has(`${id}.json`));
+    await runConcurrently(idsToUpload, async (id) => {
       const filename = `${id}.json`;
-      if (remoteTombstoneNames.has(filename)) continue;
       try {
         const tombstone = await db.get("tombstones", id);
-        if (!tombstone) continue;
+        if (!tombstone) return;
         await provider.uploadJson(auth, deletedFolderPath, filename, tombstone);
         result.uploadedDeletions++;
       } catch (e) {
         result.errors.push(`削除マーカー送信失敗（${id}）: ${describeError(e)}`);
       }
-    }
+    });
   }
 
   // 完全削除の伝播: 他端末発の削除マーカーを取り込む（まだローカルに残っているノートは削除する）
   const remoteTombstoneEntries = await provider.listFolder(auth, deletedFolderPath);
-  for (const entry of remoteTombstoneEntries) {
-    if (entry.isfolder || !entry.name.endsWith(".json")) continue;
+  const tombstonesToDownload = remoteTombstoneEntries.filter(
+    (entry) => !entry.isfolder && entry.name.endsWith(".json") && !localTombstoneIds.has(entry.name.replace(/\.json$/, ""))
+  );
+  await runConcurrently(tombstonesToDownload, async (entry) => {
     const id = entry.name.replace(/\.json$/, "");
-    if (localTombstoneIds.has(id)) continue;
     try {
       const tombstone = await provider.downloadJson<Tombstone>(auth, `${deletedFolderPath}/${entry.name}`);
       await store.importTombstone(tombstone);
@@ -102,15 +119,21 @@ export async function syncAll(providerId: SyncProviderId): Promise<SyncResult> {
     } catch (e) {
       result.errors.push(`削除マーカー受信失敗（${id}）: ${describeError(e)}`);
     }
-  }
+  });
 
   // ---- ダウンロード（マージ）----
   // アップロードより先に行う。先にアップロードしてしまうと、他端末の競合する編集を
   // 確認する前に自分の版でリモートを上書きしてしまい、「競合時は両方の版を残す」が
   // 機能しなくなるため（常に後からsyncした端末が勝ってしまう）。
-  const remoteNoteEntries = await provider.listFolder(auth, `${folder}/notes`);
-  for (const entry of remoteNoteEntries) {
-    if (entry.isfolder || !entry.name.endsWith(".json")) continue;
+  const remoteNoteEntries = (await provider.listFolder(auth, `${folder}/notes`)).filter(
+    (e) => !e.isfolder && e.name.endsWith(".json")
+  );
+  // 添付フォルダの一覧はノート1件ごとではなく、同期1回につき1度だけ取得する
+  // （以前はノート×添付ごとに毎回フォルダ全体を再取得しており、ノート数・添付数に対して
+  // 通信回数が膨れ上がっていた）。
+  const remoteAttEntriesForDownload = await provider.listFolder(auth, `${folder}/attachments`);
+
+  await runConcurrently(remoteNoteEntries, async (entry) => {
     try {
       const remoteNote = await provider.downloadJson<Note>(auth, `${folder}/notes/${entry.name}`);
 
@@ -135,13 +158,12 @@ export async function syncAll(providerId: SyncProviderId): Promise<SyncResult> {
       }
 
       if (remoteNote.attachmentIds.length) {
-        for (const attId of remoteNote.attachmentIds) {
+        await runConcurrently(remoteNote.attachmentIds, async (attId) => {
           try {
             const existing = await db.get("attachments", attId);
-            if (existing) continue;
-            const remoteAttEntries = await provider.listFolder(auth, `${folder}/attachments`);
-            const match = remoteAttEntries.find((e) => e.name.startsWith(`${attId}__`));
-            if (!match) continue;
+            if (existing) return;
+            const match = remoteAttEntriesForDownload.find((e) => e.name.startsWith(`${attId}__`));
+            if (!match) return;
             const blob = await provider.downloadBlob(auth, `${folder}/attachments/${match.name}`);
             await store.importAttachment({
               id: attId,
@@ -156,16 +178,17 @@ export async function syncAll(providerId: SyncProviderId): Promise<SyncResult> {
           } catch (e) {
             result.errors.push(`添付受信失敗（${attId}）: ${describeError(e)}`);
           }
-        }
+        });
       }
     } catch (e) {
       result.errors.push(`ノート受信失敗（${entry.name}）: ${describeError(e)}`);
     }
-  }
+  });
 
-  const remoteNotebookEntries = await provider.listFolder(auth, `${folder}/notebooks`);
-  for (const entry of remoteNotebookEntries) {
-    if (entry.isfolder || !entry.name.endsWith(".json")) continue;
+  const remoteNotebookEntries = (await provider.listFolder(auth, `${folder}/notebooks`)).filter(
+    (e) => !e.isfolder && e.name.endsWith(".json")
+  );
+  await runConcurrently(remoteNotebookEntries, async (entry) => {
     try {
       const remoteNotebook = await provider.downloadJson<Notebook>(auth, `${folder}/notebooks/${entry.name}`);
       const before = useStore.getState().notebooks.find((n) => n.id === remoteNotebook.id);
@@ -174,7 +197,7 @@ export async function syncAll(providerId: SyncProviderId): Promise<SyncResult> {
     } catch (e) {
       result.errors.push(`ノートブック受信失敗（${entry.name}）: ${describeError(e)}`);
     }
-  }
+  });
 
   // ---- アップロード ----
   // ダウンロード（マージ）の後に行う。これにより、ローカルにしかない新規ノート・
@@ -183,7 +206,15 @@ export async function syncAll(providerId: SyncProviderId): Promise<SyncResult> {
   const localNotes = await db.getAll("notes");
   const localNotebooks = await db.getAll("notebooks");
 
-  for (const note of localNotes) {
+  // ダウンロード側と同様、添付フォルダの一覧は同期1回につき1度だけ取得して使い回す。
+  // 同じ同期内でアップロードした添付は都度このSetに追加し、以降のノートでの重複判定に使う。
+  const remoteAttNamesForUpload = new Set(
+    localNotes.some((n) => n.attachmentIds.length)
+      ? (await provider.listFolder(auth, `${folder}/attachments`)).map((e) => e.name)
+      : []
+  );
+
+  await runConcurrently(localNotes, async (note) => {
     try {
       await provider.uploadJson(auth, `${folder}/notes`, `${note.id}.json`, note);
       result.uploadedNotes++;
@@ -192,47 +223,46 @@ export async function syncAll(providerId: SyncProviderId): Promise<SyncResult> {
       await provider.createFolderIfNotExists(auth, histFolderPath);
       const remoteHistNames = new Set((await provider.listFolder(auth, histFolderPath)).map((e) => e.name));
       const localHistory = await db.getAllFromIndex("history", "noteId", note.id);
-      for (const h of localHistory) {
-        const filename = `${h.id}.json`;
-        if (remoteHistNames.has(filename)) continue; // 履歴は不変なので既存なら再送しない
+      const historyToUpload = localHistory.filter((h) => !remoteHistNames.has(`${h.id}.json`)); // 履歴は不変なので既存なら再送しない
+      await runConcurrently(historyToUpload, async (h) => {
         try {
-          await provider.uploadJson(auth, histFolderPath, filename, h);
+          await provider.uploadJson(auth, histFolderPath, `${h.id}.json`, h);
           result.uploadedHistory++;
         } catch (e) {
           result.errors.push(`履歴送信失敗（${note.title || note.id}）: ${describeError(e)}`);
         }
-      }
+      });
 
       if (note.attachmentIds.length) {
-        const remoteAttNames = new Set((await provider.listFolder(auth, `${folder}/attachments`)).map((e) => e.name));
-        for (const attId of note.attachmentIds) {
+        await runConcurrently(note.attachmentIds, async (attId) => {
           try {
             const att = await db.get("attachments", attId);
-            if (!att) continue;
+            if (!att) return;
             const filename = `${att.id}__${att.filename}`;
-            if (remoteAttNames.has(filename)) continue;
+            if (remoteAttNamesForUpload.has(filename)) return;
             await provider.uploadBlob(auth, `${folder}/attachments`, filename, att.data);
+            remoteAttNamesForUpload.add(filename);
             result.uploadedAttachments++;
           } catch (e) {
             result.errors.push(`添付送信失敗（${attId}）: ${describeError(e)}`);
           }
-        }
+        });
       }
     } catch (e) {
       result.errors.push(`ノート送信失敗（${note.title || note.id}）: ${describeError(e)}`);
     }
-  }
+  });
 
   // ノートブックはノートと同様にID単位のファイルとして同期する（単一blobだと
   // 他端末のリネーム・削除が正しく伝わらないため）。
-  for (const nb of localNotebooks) {
+  await runConcurrently(localNotebooks, async (nb) => {
     try {
       await provider.uploadJson(auth, `${folder}/notebooks`, `${nb.id}.json`, nb);
       result.uploadedNotebooks++;
     } catch (e) {
       result.errors.push(`ノートブック送信失敗（${nb.name}）: ${describeError(e)}`);
     }
-  }
+  });
 
   await store.updateSettings({ lastSyncAt: new Date().toISOString() });
 
