@@ -488,6 +488,11 @@ select {
   gap: 10px;
 }
 
+.auto-sync-toggle {
+  align-items: center;
+  cursor: pointer;
+}
+
 .field-with-button {
   display: flex;
   gap: 6px;
